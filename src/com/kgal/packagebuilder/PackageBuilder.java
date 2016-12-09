@@ -66,10 +66,8 @@ public class PackageBuilder {
 		PackageBuilder sample = new PackageBuilder();
 		
 		if (args.length < 2) {
-			System.out.println("Usage parameters: <org property file path> <fetch property path>");
-			System.out.println("Example: c:\\temp\\migration\\test.properties c:\\temp\\migration\\fetch.properties - will fetch the items defined in the fetch.properties file from the org "
-			+ "specified in the file c:\\temp\\migration\\test.properties and put them in the target directory specified in the properties file, subfolder 'retrieved'");
-			System.out.println("if metadataitems property is blank in the fetch-file - will fetch all metadata from the org specified in test.properties.");
+			System.out.println("Usage: java -jar PackageBuilder.jar <org property file path> <fetch property path>");
+			System.out.println("properties\test.properties properties\fetch.properties - will list the items defined in the fetch.properties file from the org specified in the file properties\test.properties and put them in the target directory specified in the properties\fetch.properties file ");
 			System.out.println("Parameters not supplied - exiting.");
 			System.exit(0);
 		}
