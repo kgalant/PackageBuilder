@@ -43,6 +43,8 @@ public class PackageBuilder {
 	private static ArrayList<Pattern> skipPatterns = new ArrayList<Pattern>();
 	private static HashMap<String, DescribeMetadataObject> describeMetadataObjectsMap;
 	
+	private static HashSet<String> existingTypes = new HashSet<String>();
+	
 	private static final String[] allMdTypes = new String[] { "AccountSettings", "ActionOverride", "ActivitiesSettings", "AddressSettings", "AnalyticSnapshot",
 			"ApexClass", "ApexComponent", "ApexPage", "ApexTrigger", "AppMenu", "ApprovalProcess", "ArticleType", "AssignmentRules", "AuthProvider",
 			"AutoResponseRules", "BaseSharingRule", "BusinessHoursSettings", "BusinessProcess", "CallCenter", "CaseSettings", "ChatterAnswersSettings",
@@ -91,7 +93,7 @@ public class PackageBuilder {
 		String mdTypesToExamine = fetchProps.getProperty("metadataitems") == null ? "" : fetchProps.getProperty("metadataitems");
 		
 		for (String s : mdTypesToExamine.split(",")) {
-			typesToFetch.add(s);
+			typesToFetch.add(s.trim());
 		}
 		
 		for (String s : allMdTypes) {
@@ -106,7 +108,7 @@ public class PackageBuilder {
 		srcUser = sourceProps.getProperty("sf_username");
 		srcPwd = sourceProps.getProperty("sf_password");
 		myMaxItems = fetchProps.getProperty("maxItems") == null ? MAX_ITEMS : Integer.parseInt(fetchProps.getProperty("maxItems"));
-		skipItems = fetchProps.getProperty("skipItems");
+		skipItems = fetchProps.getProperty("skipItems") == null ? "" : fetchProps.getProperty("skipItems");
 		
 		
 		this.targetDir = Utils.checkPathSlash(Utils.checkPathSlash(fetchProps.getProperty("targetdirectory")) + "retrieved");
@@ -125,19 +127,23 @@ public class PackageBuilder {
 		DescribeMetadataResult dmr = srcMetadataConnection.describeMetadata(myApiVersion);
 		describeMetadataObjectsMap = new HashMap<String, DescribeMetadataObject>();
 		
-		 for (DescribeMetadataObject obj : dmr.getMetadataObjects()) {
-			 describeMetadataObjectsMap.put(obj.getXmlName(), obj);
-		 }
-
-		Iterator<String> i = typesToFetch.iterator();
+		for (DescribeMetadataObject obj : dmr.getMetadataObjects()) {
+			describeMetadataObjectsMap.put(obj.getXmlName(), obj);
+		}
+		ArrayList<String> workToDo = new ArrayList<String>(typesToFetch);
 		
+		Collections.sort(workToDo);
+		
+		Iterator<String> i = workToDo.iterator();
+		int counter = 0;
 		while (i.hasNext()) {
+			counter ++;
 			String mdType = i.next();
 			if (!allMdTypesSet.contains(mdType)) {
 				continue;
 			}
 			System.out.println("*********************************************");
-			System.out.println("Processing: " + mdType);
+			System.out.println("Processing type " + counter + " out of " + workToDo.size() + ": " + mdType );
 			System.out.println("*********************************************");
 			ArrayList<String> mdTypeItemList = fetchMetadata(mdType);
 			
@@ -156,6 +162,7 @@ public class PackageBuilder {
 
 	private void generatePackageXML(HashMap<String, ArrayList<String>> inventory) {
 		StringBuffer packageXML = new StringBuffer();
+		int itemCount = 0;
 		packageXML.append("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n");
 		packageXML.append("<Package xmlns=\"http://soap.sforce.com/2006/04/metadata\">\n");
 		
@@ -188,12 +195,18 @@ public class PackageBuilder {
 					break;
 				}
 			}
+			
+//			check if we have any items in this category
+			
+			ArrayList<String> items = inventory.get(mdType);
+			if (items.size() < 1) {
+				shouldSkip = true;
+			}
+			
 			if (shouldSkip) {
 				continue;
 			}
-			
-			ArrayList<String> items = inventory.get(mdType);
-			
+						
 			packageXML.append("\t<types>\n");
 			for (String item : items) {
 				shouldSkip = false;
@@ -208,6 +221,7 @@ public class PackageBuilder {
 				}
 				if (!shouldSkip) {
 					packageXML.append("\t\t<members>" + item + "</members>\n");	
+					itemCount++;
 				}
 					
 			}
@@ -221,6 +235,12 @@ public class PackageBuilder {
 		
 		Utils.writeFile(targetDir + "package.xml", packageXML.toString());
 		
+		ArrayList<String> typesFound = new ArrayList<String>(existingTypes);
+		Collections.sort(typesFound);
+		
+		System.out.println("Types found in org: " + typesFound.toString());
+		
+		System.out.println("Total items in package.xml: " + itemCount);
 	}
 
 	private ArrayList<String> fetchMetadata (String metadataType) throws RemoteException, Exception {
@@ -289,7 +309,9 @@ public class PackageBuilder {
 				}
 				itemCount += srcMd.length;
 				System.out.println("Metadata items: " + srcMd.length + "\tCurrent total: " + itemCount);
-				
+				if (itemCount > 0) {
+					existingTypes.add(metadataType);
+				}
 				
 				if (srcMd != null && srcMd.length > 0) {
 					for (FileProperties n : srcMd) {
