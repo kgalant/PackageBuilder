@@ -5,6 +5,6 @@ This is a tool for salesforce.com. It will connect to an org and generate a pack
 Usage:
 
 java -jar PackageBuilder.jar <org property file path> <fetch property path>
-Example: properties\test.properties properties\fetch.properties - will list the items defined in the fetch.properties file from the org specified in the file properties\test.properties and put them in the target directory specified in the properties\fetch.properties file
+Example: java -jar PackageBuilder.jar properties\test.properties properties\fetch.properties - will list the items defined in the fetch.properties file from the org specified in the file properties\test.properties and put them in the target directory specified in the properties\fetch.properties file
 
 See properties files for additional detail - should be self-explanatory
