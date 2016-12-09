@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<project default="create_run_jar" name="Create Runnable Jar for Project PackageBuilder with Jar-in-Jar Loader">
+    <!--this file was created by Eclipse Runnable JAR file Export Wizard-->
+    <!--ANT 1.7 is required-->
+    <!--define folder properties-->
+    <property name="dir.buildfile" value="."/>
+    <property name="dir.workspace" value="${dir.buildfile}/.."/>
+    <property name="dir.jarfile" value="${dir.buildfile}"/>
+    <target name="create_run_jar">
+        <jar destfile="${dir.jarfile}/PackageBuilder.jar">
+            <manifest>
+                <attribute name="Main-Class" value="org.eclipse.jdt.internal.jarinjarloader.JarRsrcLoader"/>
+                <attribute name="Rsrc-Main-Class" value="com.kgal.packagebuilder.PackageBuilder"/>
+                <attribute name="Class-Path" value="."/>
+                <attribute name="Rsrc-Class-Path" value="./ force-wsc-38.0.3.jar commons-io-2.4.jar force-metadata-api-38.0.0.jar force-partner-api-38.0.0.jar"/>
+            </manifest>
+            <zipfileset src="jar-in-jar-loader.zip"/>
+            <fileset dir="${dir.jarfile}/bin"/>
+            <zipfileset dir="/Users/kimgalant/dev/SharedLibs" includes="force-wsc-38.0.3.jar"/>
+            <zipfileset dir="/Users/kimgalant/dev/SharedLibs" includes="commons-io-2.4.jar"/>
+            <zipfileset dir="/Users/kimgalant/dev/SharedLibs" includes="force-metadata-api-38.0.0.jar"/>
+            <fileset dir="/Users/kimgalant/git/MigToolUtils/MigToolUtils/bin"/>
+            <zipfileset dir="/Users/kimgalant/dev/SharedLibs" includes="force-partner-api-38.0.0.jar"/>
+        </jar>
+    </target>
+</project>
