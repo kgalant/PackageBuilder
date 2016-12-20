@@ -12,7 +12,7 @@
                 <attribute name="Main-Class" value="org.eclipse.jdt.internal.jarinjarloader.JarRsrcLoader"/>
                 <attribute name="Rsrc-Main-Class" value="com.kgal.packagebuilder.PackageBuilder"/>
                 <attribute name="Class-Path" value="."/>
-                <attribute name="Rsrc-Class-Path" value="./ force-wsc-38.0.3.jar commons-io-2.4.jar force-metadata-api-38.0.0.jar force-partner-api-38.0.0.jar"/>
+                <attribute name="Rsrc-Class-Path" value="./ force-wsc-38.0.3.jar commons-io-2.4.jar force-metadata-api-38.0.0.jar force-partner-api-38.0.0.jar commons-cli-1.3.1.jar"/>
             </manifest>
             <zipfileset src="jar-in-jar-loader.zip"/>
             <fileset dir="${dir.jarfile}/bin"/>
@@ -21,6 +21,7 @@
             <zipfileset dir="/Users/kimgalant/dev/SharedLibs" includes="force-metadata-api-38.0.0.jar"/>
             <fileset dir="/Users/kimgalant/git/MigToolUtils/MigToolUtils/bin"/>
             <zipfileset dir="/Users/kimgalant/dev/SharedLibs" includes="force-partner-api-38.0.0.jar"/>
+            <zipfileset dir="/Users/kimgalant/dev/SharedLibs" includes="commons-cli-1.3.1.jar"/>
         </jar>
     </target>
 </project>
