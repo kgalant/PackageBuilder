@@ -1,6 +1,7 @@
 package com.kgal.packagebuilder;
 
 import com.sforce.soap.partner.PartnerConnection;
+import com.sforce.soap.tooling.ToolingConnection;
 import com.sforce.soap.partner.LoginResult;
 
 import java.util.Properties;
@@ -8,6 +9,7 @@ import java.util.Properties;
 import com.sforce.soap.metadata.MetadataConnection;
 import com.sforce.ws.ConnectionException;
 import com.sforce.ws.ConnectorConfig;
+import com.sforce.ws.transport.SoapConnection;
 
 public class MetadataLoginUtil {
 	
@@ -74,6 +76,21 @@ public class MetadataLoginUtil {
 
         return conn;
      }
+    
+    public static ToolingConnection toolingLogin(String url, String user, String pwd) throws ConnectionException {
+    	
+    	PartnerConnection conn = soapLogin(url, user, pwd);
+    	
+    	LoginResult lr = conn.login(user, pwd);
+
+    	ConnectorConfig toolingConfig = new ConnectorConfig();
+    	toolingConfig.setSessionId(lr.getSessionId());
+    	toolingConfig.setServiceEndpoint(lr.getServerUrl().replace('u', 'T'));
+
+    	ToolingConnection toolingConnection = com.sforce.soap.tooling.Connector.newConnection(toolingConfig);
+    	
+    	return toolingConnection;
+    }
 
     private static MetadataConnection createMetadataConnection(final LoginResult loginResult) throws ConnectionException {
         final ConnectorConfig config = new ConnectorConfig();
