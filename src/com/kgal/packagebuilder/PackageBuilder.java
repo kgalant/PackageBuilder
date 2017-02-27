@@ -30,6 +30,7 @@ import org.apache.commons.cli.OptionGroup;
 import org.apache.commons.cli.Options;
 import org.apache.commons.cli.ParseException;
 
+import com.kgal.SFLogin.LoginUtil;
 import com.salesforce.migrationtoolutils.Utils;
 
 public class PackageBuilder {
@@ -128,7 +129,7 @@ public class PackageBuilder {
 		HashMap<String,ArrayList<String>> inventory = new HashMap<String,ArrayList<String>>(); 
 
 		// Make a login call to source
-		this.srcMetadataConnection = MetadataLoginUtil.mdLogin(srcUrl, srcUser, srcPwd);
+		this.srcMetadataConnection = LoginUtil.mdLogin(srcUrl, srcUser, srcPwd);
 
 		// get a describe
 
@@ -257,7 +258,7 @@ public class PackageBuilder {
 						"FROM FlowDefinition " +
 						"WHERE ActiveVersion.VersionNumber <> NULL";
 
-				this.srcToolingConnection = MetadataLoginUtil.toolingLogin(srcUrl, srcUser, srcPwd);
+				this.srcToolingConnection = LoginUtil.toolingLogin(srcUrl, srcUser, srcPwd);
 				com.sforce.soap.tooling.QueryResult qr = srcToolingConnection.query(flowQuery);
 				com.sforce.soap.tooling.sobject.SObject[] records = qr.getRecords();
 				for (com.sforce.soap.tooling.sobject.SObject record : records) {
