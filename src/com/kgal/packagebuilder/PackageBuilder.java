@@ -360,13 +360,20 @@ public class PackageBuilder {
 					existingTypes.add(metadataType);
 				}
 
-				if (srcMd != null && srcMd.length > 0) {
-					for (FileProperties n : srcMd) {
-						if (n.getNamespacePrefix() == null) {
-							packageMap.add(n.getFullName());	
-						}
+				if (srcMd != null && srcMd.length > 0 
+						|| metadataType.equals("StandardValueSet")) { // hack alert - currently listMetadata call will return nothing for StandardValueSet
+					if (!metadataType.equals("StandardValueSet")) {
+						for (FileProperties n : srcMd) {
+							if (n.getNamespacePrefix() == null || n.getNamespacePrefix().equals("")) {
+								packageMap.add(n.getFullName());	
+							}
 
+						}
+					} else {
+						for (String s : STANDARDVALUETYPESARRAY) packageMap.add(s);
 					}
+					
+					
 				} else {
 					if (!isFolder) {
 						System.out.println("No items of this type, skipping...");
@@ -531,4 +538,79 @@ public class PackageBuilder {
 			}
 		} else printHelp();
 	}
+	
+	private static final String[] STANDARDVALUETYPESARRAY = new String[]
+			{"AccountContactMultiRoles","AccountContactRole","AccountOwnership","AccountRating","AccountType","AddressCountryCode","AddressStateCode",
+					"AssetStatus","CampaignMemberStatus","CampaignStatus","CampaignType","CaseContactRole","CaseOrigin","CasePriority","CaseReason",
+					"CaseStatus","CaseType","ContactRole","ContractContactRole","ContractStatus","EntitlementType","EventSubject","EventType",
+					"FiscalYearPeriodName","FiscalYearPeriodPrefix","FiscalYearQuarterName","FiscalYearQuarterPrefix","IdeaCategory1",
+					"IdeaMultiCategory","IdeaStatus","IdeaThemeStatus","Industry","InvoiceStatus","LeadSource","LeadStatus","OpportunityCompetitor",
+					"OpportunityStage","OpportunityType","OrderStatus1","OrderType","PartnerRole","Product2Family","QuestionOrigin1","QuickTextCategory",
+					"QuickTextChannel","QuoteStatus","SalesTeamRole","Salutation","ServiceContractApprovalStatus","SocialPostClassification",
+					"SocialPostEngagementLevel","SocialPostReviewedStatus","SolutionStatus","TaskPriority","TaskStatus","TaskSubject","TaskType",
+					"WorkOrderLineItemStatus","WorkOrderPriority","WorkOrderStatus"};
+	
+	private static final String STANDARDVALUETYPES = "<types>\n"
+			+ "<members>AccountContactMultiRoles</members>\n"
+			+ "<members>AccountContactRole</members>\n"
+			+ "<members>AccountOwnership</members>\n"
+			+ "<members>AccountRating</members>\n"
+			+ "<members>AccountType</members>\n"
+			+ "<members>AddressCountryCode</members>\n"
+			+ "<members>AddressStateCode</members>\n"
+			+ "<members>AssetStatus</members>\n"
+			+ "<members>CampaignMemberStatus</members>\n"
+			+ "<members>CampaignStatus</members>\n"
+			+ "<members>CampaignType</members>\n"
+			+ "<members>CaseContactRole</members>\n"
+			+ "<members>CaseOrigin</members>\n"
+			+ "<members>CasePriority</members>\n"
+			+ "<members>CaseReason</members>\n"
+			+ "<members>CaseStatus</members>\n"
+			+ "<members>CaseType</members>\n"
+			+ "<members>ContactRole</members>\n"
+			+ "<members>ContractContactRole</members>\n"
+			+ "<members>ContractStatus</members>\n"
+			+ "<members>EntitlementType</members>\n"
+			+ "<members>EventSubject</members>\n"
+			+ "<members>EventType</members>\n"
+			+ "<members>FiscalYearPeriodName</members>\n"
+			+ "<members>FiscalYearPeriodPrefix</members>\n"
+			+ "<members>FiscalYearQuarterName</members>\n"
+			+ "<members>FiscalYearQuarterPrefix</members>\n"
+			+ "<members>IdeaCategory1</members>\n"
+			+ "<members>IdeaMultiCategory</members>\n"
+			+ "<members>IdeaStatus</members>\n"
+			+ "<members>IdeaThemeStatus</members>\n"
+			+ "<members>Industry</members>\n"
+			+ "<members>InvoiceStatus</members>\n"
+			+ "<members>LeadSource</members>\n"
+			+ "<members>LeadStatus</members>\n"
+			+ "<members>OpportunityCompetitor</members>\n"
+			+ "<members>OpportunityStage</members>\n"
+			+ "<members>OpportunityType</members>\n"
+			+ "<members>OrderStatus</members>\n"
+			+ "<members>OrderType</members>\n"
+			+ "<members>PartnerRole</members>\n"
+			+ "<members>Product2Family</members>\n"
+			+ "<members>QuestionOrigin</members>\n"
+			+ "<members>QuickTextCategory</members>\n"
+			+ "<members>QuickTextChannel</members>\n"
+			+ "<members>QuoteStatus</members>\n"
+			+ "<members>SalesTeamRole</members>\n"
+			+ "<members>Salutation</members>\n"
+			+ "<members>ServiceContractApprovalStatus</members>\n"
+			+ "<members>SocialPostClassification</members>\n"
+			+ "<members>SocialPostEngagementLevel</members>\n"
+			+ "<members>SocialPostReviewedStatus</members>\n"
+			+ "<members>SolutionStatus</members>\n"
+			+ "<members>TaskPriority</members>\n"
+			+ "<members>TaskStatus</members>\n"
+			+ "<members>TaskSubject</members>\n"
+			+ "<members>TaskType</members>\n"
+			+ "<members>WorkOrderLineItemStatus</members>\n"
+			+ "<members>WorkOrderPriority</members>\n"
+			+ "<members>WorkOrderStatus</members>\n"
+			+ "<name>StandardValueSet</name>\n"
+			+ "</types>\n";
 }
