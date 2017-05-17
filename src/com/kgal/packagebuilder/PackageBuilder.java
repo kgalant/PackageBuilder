@@ -420,7 +420,7 @@ public class PackageBuilder {
 
 			} while (folder.hasNext());
 			
-			log(metadataType + " items: " + thisItemCount + "\tCurrent total: " + itemCount, Loglevel.BRIEF);
+			log(metadataType + " items: " + (itemCount), Loglevel.BRIEF);
 
 		} catch (ConnectionException ce) {
 			//			ce.printStackTrace();
