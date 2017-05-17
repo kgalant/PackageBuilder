@@ -1,5 +1,7 @@
 package com.kgal.packagebuilder;
 
+import java.io.File;
+import java.io.IOException;
 import java.rmi.RemoteException;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -35,6 +37,18 @@ import com.salesforce.migrationtoolutils.Utils;
 
 public class PackageBuilder {
 
+	public enum Loglevel {
+		VERBOSE (2), NORMAL (1), BRIEF (0);
+		private final int level;
+		
+		Loglevel(int level) {
+			this.level = level;
+		}
+		
+		int getLevel() {return level;}
+	
+	};
+	
 	String authEndPoint = "";
 
 	private long timeStart;
@@ -65,6 +79,8 @@ public class PackageBuilder {
 
 	private static CommandLine line = null;
 	private static Options options = new Options();
+	
+	private Loglevel loglevel;
 
 
 
@@ -101,6 +117,14 @@ public class PackageBuilder {
 	public void run() throws RemoteException, Exception {
 
 		HashSet<String> typesToFetch = new HashSet<String>();
+		
+		// set loglevel based on parameters
+		
+		if (parameters.get("loglevel") != null && parameters.get("loglevel").equals("verbose")) {
+			loglevel = Loglevel.NORMAL;
+		} else {
+			loglevel = Loglevel.BRIEF;
+		}
 
 		String mdTypesToExamine = parameters.get("metadataitems");
 
@@ -114,10 +138,9 @@ public class PackageBuilder {
 		srcPwd = parameters.get("sf_password");
 		skipItems = parameters.get("skipItems");
 
-		System.out.println("Will fetch: " + mdTypesToExamine);
-		System.out.println("From: " + srcUrl);
-		System.out.println("Using user: " + srcUser);
-		System.out.println("Skipping: " + skipItems);
+		log("Will fetch: " + mdTypesToExamine + " from: " + srcUrl, Loglevel.BRIEF);
+		log("Using user: " + srcUser + " skipping: " + skipItems, Loglevel.NORMAL);
+		
 
 
 		this.targetDir = Utils.checkPathSlash(Utils.checkPathSlash(parameters.get("targetdirectory")));
@@ -148,25 +171,25 @@ public class PackageBuilder {
 		while (i.hasNext()) {
 			counter ++;
 			String mdType = i.next();
-			System.out.println("*********************************************");
-			System.out.println("Processing type " + counter + " out of " + workToDo.size() + ": " + mdType );
-			System.out.println("*********************************************");
+			log("*********************************************", Loglevel.NORMAL);
+			log("Processing type " + counter + " out of " + workToDo.size() + ": " + mdType, Loglevel.NORMAL );
+			log("*********************************************", Loglevel.NORMAL);
 			ArrayList<String> mdTypeItemList = fetchMetadata(mdType);
 
 			Collections.sort(mdTypeItemList);
 
 			inventory.put(mdType, mdTypeItemList);
 
-			System.out.println("---------------------------------------------");
-			System.out.println("Finished processing: " + mdType);
-			System.out.println("---------------------------------------------");
+			log("---------------------------------------------", Loglevel.NORMAL);
+			log("Finished processing: " + mdType, Loglevel.NORMAL);
+			log("---------------------------------------------", Loglevel.NORMAL);
 
 		}
 
 		generatePackageXML(inventory);
 	}
 
-	private void generatePackageXML(HashMap<String, ArrayList<String>> inventory) throws ConnectionException {
+	private void generatePackageXML(HashMap<String, ArrayList<String>> inventory) throws ConnectionException, IOException {
 		StringBuffer packageXML = new StringBuffer();
 		int itemCount = 0;
 		int skipCount = 0;
@@ -198,7 +221,7 @@ public class PackageBuilder {
 
 				Matcher m = p.matcher(mdTypeFullName);
 				if (m.matches()) {
-					System.out.println("Skip pattern: " + p.pattern() + " matches the metadata type: " + mdTypeFullName + ", entire type will be skipped.");
+					log("Skip pattern: " + p.pattern() + " matches the metadata type: " + mdTypeFullName + ", entire type will be skipped.", Loglevel.NORMAL);
 					shouldSkip = true;
 					break;
 				}
@@ -222,7 +245,7 @@ public class PackageBuilder {
 				for (Pattern p : skipPatterns) {
 					Matcher m = p.matcher(mdTypeFullName);
 					if (m.matches()) {
-						System.out.println("Skip pattern: " + p.pattern() + " matches the metadata item: " + mdTypeFullName + ", item will be skipped.");
+						log("Skip pattern: " + p.pattern() + " matches the metadata item: " + mdTypeFullName + ", item will be skipped.", Loglevel.NORMAL);
 						shouldSkip = true;
 						skipCount++;
 						break;
@@ -278,14 +301,15 @@ public class PackageBuilder {
 		packageXML.append("</Package>\n");
 
 		Utils.writeFile(targetDir + "package.xml", packageXML.toString());
+		log("Writing " + new File (targetDir + "package.xml").getCanonicalPath(), Loglevel.BRIEF);
 
 		ArrayList<String> typesFound = new ArrayList<String>(existingTypes);
 		Collections.sort(typesFound);
 
-		System.out.println("Types found in org: " + typesFound.toString());
+		log("Types found in org: " + typesFound.toString(), Loglevel.BRIEF);
 
-		System.out.println("Total items in package.xml: " + itemCount);
-		System.out.println("Total items skipped: " + skipCount + " (excludes count of items in type where entire type was skipped)");
+		log("Total items in package.xml: " + itemCount, Loglevel.BRIEF);
+		log("Total items skipped: " + skipCount + " (excludes count of items in type where entire type was skipped)", Loglevel.NORMAL);
 	}
 
 	private ArrayList<String> fetchMetadata (String metadataType) throws RemoteException, Exception {
@@ -300,7 +324,7 @@ public class PackageBuilder {
 			DescribeMetadataObject obj = describeMetadataObjectsMap.get(metadataType);
 			if (obj != null && obj.getInFolder() == true) {
 				isFolder = true;
-				System.out.println(metadataType + " is stored in folders. Getting folder list.");
+				log(metadataType + " is stored in folders. Getting folder list.", Loglevel.VERBOSE);
 				ListMetadataQuery query = new ListMetadataQuery();
 				// stupid hack for emailtemplate folder name
 				String type;
@@ -324,6 +348,7 @@ public class PackageBuilder {
 			HashMap<String, ArrayList<FileProperties>> metadataMap = new HashMap<String, ArrayList<FileProperties>>();
 
 			int itemCount = 0;
+			int thisItemCount = 0;
 
 
 			do {
@@ -345,8 +370,10 @@ public class PackageBuilder {
 
 
 				FileProperties[] srcMd = srcMetadataConnection.listMetadata(new ListMetadataQuery[] { query }, myApiVersion);
+				itemCount += srcMd.length;
+				thisItemCount = srcMd.length;
 				if (folderName != null) {
-					System.out.printf("%-80.80s","Processing folder: " + folderName + " ");
+					log("Processing folder: " + folderName + " " + " items: " + srcMd.length + "\tCurrent total: " + itemCount, Loglevel.NORMAL);
 					// fetch folders themselves
 					packageMap.add(folderName);
 					ArrayList<FileProperties> filenameList = new ArrayList<FileProperties>();
@@ -354,8 +381,7 @@ public class PackageBuilder {
 					metadataMap.put(folderProperties.getFileName(), filenameList);
 					itemCount++;
 				}
-				itemCount += srcMd.length;
-				System.out.println("Metadata items: " + srcMd.length + "\tCurrent total: " + itemCount);
+				
 				if (itemCount > 0) {
 					existingTypes.add(metadataType);
 				}
@@ -376,7 +402,7 @@ public class PackageBuilder {
 					
 				} else {
 					if (!isFolder) {
-						System.out.println("No items of this type, skipping...");
+						log("No items of this type, skipping...", Loglevel.VERBOSE);
 						endTiming();
 						return packageMap;
 					}
@@ -393,6 +419,8 @@ public class PackageBuilder {
 
 
 			} while (folder.hasNext());
+			
+			log(metadataType + " items: " + thisItemCount + "\tCurrent total: " + itemCount, Loglevel.BRIEF);
 
 		} catch (ConnectionException ce) {
 			//			ce.printStackTrace();
@@ -414,7 +442,7 @@ public class PackageBuilder {
 		String hms = String.format("%02d:%02d:%02d", TimeUnit.MILLISECONDS.toHours(diff),
 				TimeUnit.MILLISECONDS.toMinutes(diff) - TimeUnit.HOURS.toMinutes(TimeUnit.MILLISECONDS.toHours(diff)),
 				TimeUnit.MILLISECONDS.toSeconds(diff) - TimeUnit.MINUTES.toSeconds(TimeUnit.MILLISECONDS.toMinutes(diff)));
-		System.out.println("Duration: " + hms);
+		log("Duration: " + hms, Loglevel.NORMAL);
 	}
 
 	private static void setupOptions() {
@@ -450,6 +478,12 @@ public class PackageBuilder {
 		options.addOption( Option.builder("d").longOpt( "destination" )
 				.desc( "directory where the generated package.xml will be written" )
 				.hasArg()
+				.build() );
+		
+		// adding handling for brief output parameter
+		
+		options.addOption( Option.builder("v").longOpt( "verbose" )
+				.desc( "output verbose logging instead of just core output" )
 				.build() );
 	}
 
@@ -524,6 +558,13 @@ public class PackageBuilder {
 			if (line.hasOption("d") && line.getOptionValue("d") != null && line.getOptionValue("d").length() > 0) {
 				parameters.put("targetdirectory", line.getOptionValue("d"));
 			}
+			
+			// adding handling for brief output parameter
+			
+			if (line.hasOption("v")) {
+				parameters.put("loglevel", "verbose");
+			}
+			
 			// check that we have the minimum parameters 
 			boolean canProceed = true;
 			for (String key : parameters.keySet()) {
@@ -537,6 +578,12 @@ public class PackageBuilder {
 				System.exit(1);
 			}
 		} else printHelp();
+	}
+
+	private void log (String logText, Loglevel level) {
+		if (level.getLevel() <= loglevel.getLevel()) {
+			System.out.println (logText);
+		}
 	}
 	
 	private static final String[] STANDARDVALUETYPESARRAY = new String[]
