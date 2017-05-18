@@ -16,9 +16,9 @@ import java.util.regex.PatternSyntaxException;
 
 import com.sforce.soap.metadata.FileProperties;
 import com.sforce.soap.metadata.MetadataConnection;
-import com.sforce.soap.partner.PartnerConnection;
-import com.sforce.soap.partner.QueryResult;
-import com.sforce.soap.partner.sobject.SObject;
+//import com.sforce.soap.partner.PartnerConnection;
+//import com.sforce.soap.partner.QueryResult;
+//import com.sforce.soap.partner.sobject.SObject;
 import com.sforce.soap.tooling.ToolingConnection;
 import com.sforce.ws.ConnectionException;
 import com.sforce.soap.metadata.*;
@@ -28,7 +28,7 @@ import org.apache.commons.cli.CommandLineParser;
 import org.apache.commons.cli.DefaultParser;
 import org.apache.commons.cli.HelpFormatter;
 import org.apache.commons.cli.Option;
-import org.apache.commons.cli.OptionGroup;
+//import org.apache.commons.cli.OptionGroup;
 import org.apache.commons.cli.Options;
 import org.apache.commons.cli.ParseException;
 
@@ -59,15 +59,15 @@ public class PackageBuilder {
 	private String srcUser;
 	private String srcPwd;
 
-	private Properties sourceProps;
-	private Properties fetchProps;
+//	private Properties sourceProps;
+//	private Properties fetchProps;
 	private static final String urlBase = "/services/Soap/u/";
 	private String targetDir = "";
 
 	private static final double API_VERSION = 38.0;
 	private static double myApiVersion;
-	private static final int MAX_ITEMS=5000;
-	private static int myMaxItems;
+//	private static final int MAX_ITEMS=5000;
+//	private static int myMaxItems;
 	private static String skipItems;
 	private static ArrayList<Pattern> skipPatterns = new ArrayList<Pattern>();
 	private static HashMap<String, DescribeMetadataObject> describeMetadataObjectsMap;
@@ -81,6 +81,7 @@ public class PackageBuilder {
 	private static Options options = new Options();
 	
 	private Loglevel loglevel;
+//	private boolean isLoggingPartialLine = false;
 
 
 
@@ -171,18 +172,26 @@ public class PackageBuilder {
 		while (i.hasNext()) {
 			counter ++;
 			String mdType = i.next();
-			log("*********************************************", Loglevel.NORMAL);
-			log("Processing type " + counter + " out of " + workToDo.size() + ": " + mdType, Loglevel.NORMAL );
-			log("*********************************************", Loglevel.NORMAL);
+			if (loglevel.getLevel() > Loglevel.BRIEF.getLevel()) {
+				log("*********************************************", Loglevel.NORMAL);
+				log("Processing type " + counter + " out of " + workToDo.size() + ": " + mdType, Loglevel.NORMAL);
+				log("*********************************************", Loglevel.NORMAL);
+			} else if (loglevel == Loglevel.BRIEF) {
+				logPartialLine("Processing type " + counter + " out of " + workToDo.size() + ": " + mdType, Loglevel.BRIEF);
+			}
+			
+
 			ArrayList<String> mdTypeItemList = fetchMetadata(mdType);
-
 			Collections.sort(mdTypeItemList);
-
 			inventory.put(mdType, mdTypeItemList);
 
-			log("---------------------------------------------", Loglevel.NORMAL);
-			log("Finished processing: " + mdType, Loglevel.NORMAL);
-			log("---------------------------------------------", Loglevel.NORMAL);
+			if (loglevel.getLevel() > Loglevel.BRIEF.getLevel()) {
+				log("---------------------------------------------", Loglevel.NORMAL);
+				log("Finished processing: " + mdType, Loglevel.NORMAL);
+				log("---------------------------------------------", Loglevel.NORMAL);
+			} else if (loglevel == Loglevel.BRIEF) {
+				log(" items: " + mdTypeItemList.size(), Loglevel.BRIEF);
+			}
 
 		}
 
@@ -314,6 +323,7 @@ public class PackageBuilder {
 
 	private ArrayList<String> fetchMetadata (String metadataType) throws RemoteException, Exception {
 		startTiming();
+		//logPartialLine(", level);
 		ArrayList<String> packageMap = new ArrayList<String>();
 		try {
 
@@ -348,7 +358,7 @@ public class PackageBuilder {
 			HashMap<String, ArrayList<FileProperties>> metadataMap = new HashMap<String, ArrayList<FileProperties>>();
 
 			int itemCount = 0;
-			int thisItemCount = 0;
+//			int thisItemCount = 0;
 
 
 			do {
@@ -371,7 +381,7 @@ public class PackageBuilder {
 
 				FileProperties[] srcMd = srcMetadataConnection.listMetadata(new ListMetadataQuery[] { query }, myApiVersion);
 				itemCount += srcMd.length;
-				thisItemCount = srcMd.length;
+//				thisItemCount = srcMd.length;
 				if (folderName != null) {
 					log("Processing folder: " + folderName + " " + " items: " + srcMd.length + "\tCurrent total: " + itemCount, Loglevel.NORMAL);
 					// fetch folders themselves
@@ -403,24 +413,17 @@ public class PackageBuilder {
 				} else {
 					if (!isFolder) {
 						log("No items of this type, skipping...", Loglevel.VERBOSE);
-						endTiming();
-						return packageMap;
+						break;
 					}
 					if (!folder.hasNext()) {
-						endTiming();
-						return packageMap;
+						break;
 					}
 				}
 				if (isFolder == true && folder.hasNext()) {
 					continue;
 				}
 
-
-
-
 			} while (folder.hasNext());
-			
-			log(metadataType + " items: " + (itemCount), Loglevel.BRIEF);
 
 		} catch (ConnectionException ce) {
 			//			ce.printStackTrace();
@@ -586,6 +589,12 @@ public class PackageBuilder {
 		}
 	}
 	
+	private void logPartialLine (String logText, Loglevel level) {
+		if (level.getLevel() <= loglevel.getLevel()) {
+			System.out.print(logText);
+		}
+	}
+	
 	private static final String[] STANDARDVALUETYPESARRAY = new String[]
 			{"AccountContactMultiRoles","AccountContactRole","AccountOwnership","AccountRating","AccountType","AddressCountryCode","AddressStateCode",
 					"AssetStatus","CampaignMemberStatus","CampaignStatus","CampaignType","CaseContactRole","CaseOrigin","CasePriority","CaseReason",
@@ -597,7 +606,7 @@ public class PackageBuilder {
 					"SocialPostEngagementLevel","SocialPostReviewedStatus","SolutionStatus","TaskPriority","TaskStatus","TaskSubject","TaskType",
 					"WorkOrderLineItemStatus","WorkOrderPriority","WorkOrderStatus"};
 	
-	private static final String STANDARDVALUETYPES = "<types>\n"
+	/*private static final String STANDARDVALUETYPES = "<types>\n"
 			+ "<members>AccountContactMultiRoles</members>\n"
 			+ "<members>AccountContactRole</members>\n"
 			+ "<members>AccountOwnership</members>\n"
@@ -660,4 +669,5 @@ public class PackageBuilder {
 			+ "<members>WorkOrderStatus</members>\n"
 			+ "<name>StandardValueSet</name>\n"
 			+ "</types>\n";
+			*/
 }
