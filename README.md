@@ -25,10 +25,43 @@ directory where the generated package.xml will be written
 * -v,--verbose                
 output verbose logging instead of just core output
 
+All parameters can be provided in parameter files specified with the -o parameter. More than one file can be provided (as in the example below, where one file would define what to fetch, skippatterns, etc., and the other where to fetch from). If any parameters are provided both in files and on the command line, the command line ones will be used. 
+
+##### Property file format
+The property files use standard Java property file format, i.e. `parameter=value`. E.g.
+
+```property
+# equivalent to -a commandline parameter
+apiversion=39.0
+# equivalent to -mi commandline parameter
+metadataitems=ApexClass, ApexComponent, ApexPage
+# equivalent to -s commandline parameter
+sf_url=https://login.salesforce.com
+# equivalent to -u commandline parameter
+sf_username=my@user.name
+# equivalent to -p commandline parameter
+sf_password=t0ps3cr3t
+# equivalent to -sp commandline parameter
+skipItems=.*fflib_.*,.*Class:AWS.*,ApexPage.*
+# equivalent to -d commandline parameter
+targetdirectory=src
+```
+
+###### Yes, I know that the property file parameters should be better aligned to the longnames of the commandline parameters. Coming in a future version!
+
+---
+
+#### Use of skipItems parameter
+what to not put into the package.xml (omit) - regular expressions that will be matched against a string of {componentType}:{componentName}, so e.g. ApexClass:MySuperClass. 
+I.e. by entering `skipItems=ApexClass.*` all classes will be omitted, while `skipItems=ApexClass:.*Super.*` will omit the classes MySuperClass, SuperClass2 and MyOtherSuperClass, but leave MyClass in the package.xml
+can also be used without the component type in front, e.g. `skipItems=.*Super.*` will skip the classes MySuperClass, SuperClass2 and MyOtherSuperClass as well as the object MySuperCustomObject, etc.
+Multiple patterns can be provided separated by commas.
+
 #### Example: 
-java -jar PackageBuilder.jar properties\test.properties properties\fetch.properties
-will list the items defined in the fetch.properties file from the org specified in the 
-file properties\test.properties and put them in the target directory specified in the 
-properties\fetch.properties file
+```
+java -jar PackageBuilder.jar -d src -o packagebuilder.properties,org.properties -a 39.0
+```
+Will run the packagebuilder outputting `package.xml` to the `src` folder, using parameters specified in the `pacakgebuilder.properties` and `org.properties` 
+
 
 See properties files for additional detail - should be self-explanatory
