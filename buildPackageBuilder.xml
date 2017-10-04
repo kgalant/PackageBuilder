@@ -12,18 +12,18 @@
                 <attribute name="Main-Class" value="org.eclipse.jdt.internal.jarinjarloader.JarRsrcLoader"/>
                 <attribute name="Rsrc-Main-Class" value="com.kgal.packagebuilder.PackageBuilder"/>
                 <attribute name="Class-Path" value="."/>
-                <attribute name="Rsrc-Class-Path" value="./ commons-io-2.4.jar commons-cli-1.3.1.jar tooling-38.jar metadata-39.jar partner-39.jar force-wsc-39.0.1.jar"/>
+                <attribute name="Rsrc-Class-Path" value="./ metadata-41.jar partner-41.jar force-wsc-41.0.0.jar tooling-38.jar commons-cli-1.3.1.jar commons-io-2.4.jar"/>
             </manifest>
             <zipfileset src="jar-in-jar-loader.zip"/>
+            <zipfileset dir="/Users/kgalant/Documents/dev/sharedlibs" includes="metadata-41.jar"/>
+            <zipfileset dir="/Users/kgalant/Documents/dev/sharedlibs" includes="partner-41.jar"/>
+            <zipfileset dir="/Users/kgalant/Documents/dev/sharedlibs" includes="force-wsc-41.0.0.jar"/>
+            <zipfileset dir="/Users/kgalant/Documents/dev/sharedlibs" includes="tooling-38.jar"/>
+            <zipfileset dir="/Users/kgalant/Documents/dev/sharedlibs" includes="commons-cli-1.3.1.jar"/>
+            <zipfileset dir="/Users/kgalant/Documents/dev/sharedlibs" includes="commons-io-2.4.jar"/>
             <fileset dir="${dir.jarfile}/bin"/>
-            <zipfileset dir="/Users/kimgalant/dev/SharedLibs" includes="commons-io-2.4.jar"/>
-            <fileset dir="/Users/kimgalant/git/MigToolUtils/MigToolUtils/bin"/>
-            <zipfileset dir="/Users/kimgalant/dev/SharedLibs" includes="commons-cli-1.3.1.jar"/>
-            <zipfileset dir="/Users/kimgalant/dev/SharedLibs" includes="tooling-38.jar"/>
-            <fileset dir="${dir.workspace}/SFLogin/bin"/>
-            <zipfileset dir="/Users/kimgalant/dev/SharedLibs" includes="metadata-39.jar"/>
-            <zipfileset dir="/Users/kimgalant/dev/SharedLibs" includes="partner-39.jar"/>
-            <zipfileset dir="/Users/kimgalant/dev/SharedLibs" includes="force-wsc-39.0.1.jar"/>
+            <fileset dir="/Users/kgalant/repos/MigToolUtils/MigToolUtils/bin"/>
+            <fileset dir="/Users/kgalant/repos/SFLogin/SFLogin/bin"/>
         </jar>
     </target>
 </project>
