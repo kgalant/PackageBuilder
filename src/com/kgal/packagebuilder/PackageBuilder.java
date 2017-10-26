@@ -141,7 +141,6 @@ public class PackageBuilder {
 
 		log("Will fetch: " + mdTypesToExamine + " from: " + srcUrl, Loglevel.BRIEF);
 		log("Using user: " + srcUser + " skipping: " + skipItems, Loglevel.NORMAL);
-		
 
 
 		this.targetDir = Utils.checkPathSlash(Utils.checkPathSlash(parameters.get("targetdirectory")));
@@ -550,7 +549,7 @@ public class PackageBuilder {
 				parameters.put("sf_url", line.getOptionValue("s"));
 			}
 			if (line.hasOption("p") && line.getOptionValue("p") != null && line.getOptionValue("p").length() > 0) {
-				parameters.put("sf_password", line.getOptionValue("u"));
+				parameters.put("sf_password", line.getOptionValue("p"));
 			}
 			if (line.hasOption("mi") && line.getOptionValue("mi") != null && line.getOptionValue("mi").length() > 0) {
 				parameters.put("metadataitems", line.getOptionValue("mi"));
