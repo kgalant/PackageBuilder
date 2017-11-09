@@ -292,6 +292,14 @@ public class PackageBuilder {
 					System.out.println("Created inventory record for type: " + mdType);
 				}
 				
+				// check if there is a folder in the filename and it's aura - then we need to leave the folder, skip the item
+				
+				if (filename.contains("/") && mdType.equals("AuraDefinitionBundle")) {
+					String subFoldername = filename.substring(0,filename.indexOf("/"));
+					typeInventory.add(subFoldername);
+					continue;
+				}
+				
 				// check if there is a folder in the filename - then we need to add the folder as well
 				
 				if (filename.contains("/")) {
