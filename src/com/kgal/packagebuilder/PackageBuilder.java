@@ -279,7 +279,7 @@ public class PackageBuilder {
 				}
 
 				if (mdType == null) {
-					System.out.println("Couldn't find type mapping for item : " + mdType + " : " + filename + ", original path: " + s + ",skipping...");
+					log("Couldn't find type mapping for item : " + mdType + " : " + filename + ", original path: " + s + ",skipping...", Loglevel.BRIEF);
 					continue;
 				}
 
@@ -297,6 +297,7 @@ public class PackageBuilder {
 				if (filename.contains("/") && mdType.equals("AuraDefinitionBundle")) {
 					String subFoldername = filename.substring(0,filename.indexOf("/"));
 					typeInventory.add(subFoldername);
+					log("Added: " + mdType + " : " + subFoldername + ", to inventory, original path: " + s, Loglevel.NORMAL);
 					continue;
 				}
 				
@@ -308,20 +309,22 @@ public class PackageBuilder {
 				}
 				
 				typeInventory.add(filename);
+				log("Added: " + mdType + " : " + filename + ", to inventory, original path: " + s, Loglevel.NORMAL);
 				
 				// convert myinventory to the right return type
 				
-				for (String myMdType : myInventory.keySet()) {
-					ArrayList<String> invType = new ArrayList<String>();
-					invType.addAll(myInventory.get(myMdType));
-					inventory.put(myMdType, invType);
-				}
+				
 			} catch (Exception e) {
 //				Something bad happened
 				System.out.println("Something bad happened on file: " + s + ", skipping...");
 			}
 			
 			
+		}
+		for (String myMdType : myInventory.keySet()) {
+			ArrayList<String> invType = new ArrayList<String>();
+			invType.addAll(myInventory.get(myMdType));
+			inventory.put(myMdType, invType);
 		}
 		
 		
