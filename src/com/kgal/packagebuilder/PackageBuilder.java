@@ -537,7 +537,7 @@ public class PackageBuilder {
 
 				query.setType(metadataType);
 				String folderName = null;
-				if (isFolder) {
+				if (isFolder && folder.hasNext()) {
 					folderProperties = folder.next(); 
 					folderName = folderProperties.getFullName();
 					query.setFolder(folderName);
