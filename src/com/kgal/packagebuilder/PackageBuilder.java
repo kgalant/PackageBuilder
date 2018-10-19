@@ -64,7 +64,7 @@ public class PackageBuilder {
 	private static final String urlBase = "/services/Soap/u/";
 	private String targetDir = "";
 
-	private static final double API_VERSION = 38.0;
+	private static final double API_VERSION = 44.0;
 	private static double myApiVersion;
 //	private static final int MAX_ITEMS=5000;
 //	private static int myMaxItems;
