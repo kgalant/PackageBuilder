@@ -138,7 +138,7 @@ public class PackageBuilder {
 		// initialize inventory - it will be used in both types of operations
 		// (connect to org or run local)
 		
-		HashMap<String,ArrayList<String>> inventory = new HashMap<String,ArrayList<String>>(); 
+		HashMap<String,ArrayList<InventoryItem>> inventory = new HashMap<String,ArrayList<InventoryItem>>(); 
 		myApiVersion = Double.parseDouble(parameters.get("apiversion"));
 		this.targetDir = Utils.checkPathSlash(Utils.checkPathSlash(parameters.get("targetdirectory")));
 		
@@ -155,7 +155,7 @@ public class PackageBuilder {
 		generatePackageXML(inventory);
 	}
 
-	private void generateInventoryFromOrg(HashMap<String, ArrayList<String>> inventory) throws RemoteException, Exception {
+	private void generateInventoryFromOrg(HashMap<String, ArrayList<InventoryItem>> inventory) throws RemoteException, Exception {
 		HashSet<String> typesToFetch = new HashSet<String>();
 		String mdTypesToExamine = parameters.get("metadataitems");
 
@@ -210,8 +210,8 @@ public class PackageBuilder {
 			}
 
 
-			ArrayList<String> mdTypeItemList = fetchMetadataType(mdType);
-			Collections.sort(mdTypeItemList);
+			ArrayList<InventoryItem> mdTypeItemList = new ArrayList<InventoryItem>(fetchMetadataType(mdType).values());
+			Collections.sort(mdTypeItemList, (o1, o2) -> o1.itemName.compareTo(o2.itemName));
 			inventory.put(mdType, mdTypeItemList);
 
 			if (loglevel.getLevel() > Loglevel.BRIEF.getLevel()) {
@@ -228,12 +228,12 @@ public class PackageBuilder {
 	// added method for generating an inventory based on a local directory
 	// rather than an org
 	
-	private void generateInventoryFromDir(HashMap<String, ArrayList<String>> inventory) throws IOException {
+	private void generateInventoryFromDir(HashMap<String, ArrayList<InventoryItem>> inventory) throws IOException {
 		String basedir = parameters.get("basedirectory");
 		
 		// check if the directory is valid
 		
-		HashMap<String, HashSet<String>> myInventory = new HashMap<String, HashSet<String>>();
+		HashMap<String, HashSet<InventoryItem>> myInventory = new HashMap<String, HashSet<InventoryItem>>();
 		
 		if (!Utils.checkIsDirectory(basedir)) {
 			// log error and exit
@@ -295,9 +295,9 @@ public class PackageBuilder {
 
 				// generate inventory entry
 				
-				HashSet<String> typeInventory = myInventory.get(mdType);
+				HashSet<InventoryItem> typeInventory = myInventory.get(mdType);
 				if (typeInventory == null) {
-					typeInventory = new HashSet<String>();
+					typeInventory = new HashSet<InventoryItem>();
 					myInventory.put(mdType, typeInventory);
 					System.out.println("Created inventory record for type: " + mdType);
 				}
@@ -306,7 +306,7 @@ public class PackageBuilder {
 				
 				if (filename.contains("/") && mdType.equals("AuraDefinitionBundle")) {
 					String subFoldername = filename.substring(0,filename.indexOf("/"));
-					typeInventory.add(subFoldername);
+					typeInventory.add(new InventoryItem(subFoldername, null));
 					log("Added: " + mdType + " : " + subFoldername + ", to inventory, original path: " + s, Loglevel.NORMAL);
 					continue;
 				}
@@ -315,10 +315,10 @@ public class PackageBuilder {
 				
 				if (filename.contains("/")) {
 					String subFoldername = filename.substring(0,filename.indexOf("/"));
-					typeInventory.add(subFoldername);
+					typeInventory.add(new InventoryItem(subFoldername, null));
 				}
 				
-				typeInventory.add(filename);
+				typeInventory.add(new InventoryItem(filename, null));
 				log("Added: " + mdType + " : " + filename + ", to inventory, original path: " + s, Loglevel.NORMAL);
 				
 				// convert myinventory to the right return type
@@ -332,7 +332,7 @@ public class PackageBuilder {
 			
 		}
 		for (String myMdType : myInventory.keySet()) {
-			ArrayList<String> invType = new ArrayList<String>();
+			ArrayList<InventoryItem> invType = new ArrayList<InventoryItem>();
 			invType.addAll(myInventory.get(myMdType));
 			inventory.put(myMdType, invType);
 		}
@@ -370,7 +370,7 @@ public class PackageBuilder {
 	// e.g. flow, customobject, etc.
 	
 
-	private void generatePackageXML(HashMap<String, ArrayList<String>> inventory) throws ConnectionException, IOException {
+	private void generatePackageXML(HashMap<String, ArrayList<InventoryItem>> inventory) throws ConnectionException, IOException {
 		StringBuffer packageXML = new StringBuffer();
 		int itemCount = 0;
 		int skipCount = 0;
@@ -414,7 +414,7 @@ public class PackageBuilder {
 
 			//			check if we have any items in this category
 
-			ArrayList<String> items = inventory.get(mdType);
+			ArrayList<InventoryItem> items = inventory.get(mdType);
 			if (items.size() < 1) {
 				shouldSkip = true;
 			}
@@ -425,10 +425,10 @@ public class PackageBuilder {
 
 			packageXML.append("\t<types>\n");
 			packageXML.append("\t\t<name>" + mdType + "</name>\n");
-			Collections.sort(items);
-			for (String item : items) {
+			Collections.sort(items, (o1, o2) -> o1.itemName.compareTo(o2.itemName));
+			for (InventoryItem item : items) {
 				shouldSkip = false;
-				mdTypeFullName = mdType + ":" + item;
+				mdTypeFullName = mdType + ":" + item.itemName;
 				for (Pattern p : skipPatterns) {
 					Matcher m = p.matcher(mdTypeFullName);
 					if (m.matches()) {
@@ -446,13 +446,13 @@ public class PackageBuilder {
 				//		<members>Update_Campaign_path_on_oppty-5</members>
 
 				if (mdType.toLowerCase().equals("flow") && FILTERVERSIONLESSFLOWS) {
-					if (!item.contains("-")) {
+					if (!item.itemName.contains("-")) {
 						// we won't count this one as skipped, since it shouldn't be there in the first place
 						shouldSkip = true;
 					}
 				}
 				if (!shouldSkip) {
-					packageXML.append("\t\t<members>" + item + "</members>\n");	
+					packageXML.append("\t\t<members>" + item.itemName + "</members>\n");	
 					itemCount++;
 				}
 			}
@@ -500,10 +500,11 @@ public class PackageBuilder {
 		log("Total items skipped: " + skipCount + " (excludes count of items in type where entire type was skipped)", Loglevel.NORMAL);
 	}
 
-	private ArrayList<String> fetchMetadataType (String metadataType) throws RemoteException, Exception {
+	private HashMap<String, InventoryItem> fetchMetadataType (String metadataType) throws RemoteException, Exception {
+
 		startTiming();
-		//logPartialLine(", level);
-		ArrayList<String> packageMap = new ArrayList<String>();
+
+		HashMap<String, InventoryItem> packageInventoryList = new HashMap<String, InventoryItem>();
 		try {
 
 			ArrayList<FileProperties> foldersToProcess = new ArrayList<FileProperties>();
@@ -515,6 +516,7 @@ public class PackageBuilder {
 				isFolder = true;
 				log(metadataType + " is stored in folders. Getting folder list.", Loglevel.VERBOSE);
 				ListMetadataQuery query = new ListMetadataQuery();
+				
 				// stupid hack for emailtemplate folder name
 				String type;
 				if (metadataType.toLowerCase().equals("emailtemplate")) {
@@ -528,6 +530,10 @@ public class PackageBuilder {
 				if (srcMd != null && srcMd.length > 0) {
 					for (FileProperties n : srcMd) {
 						foldersToProcess.add(n);
+						
+						// add folder to final inventory
+						
+						packageInventoryList.put(n.getFullName(),new InventoryItem(n.getFullName(), n, true));
 					}
 				}
 			}
@@ -564,7 +570,6 @@ public class PackageBuilder {
 				if (folderName != null) {
 					log("Processing folder: " + folderName + " " + " items: " + srcMd.length + "\tCurrent total: " + itemCount, Loglevel.NORMAL);
 					// fetch folders themselves
-					packageMap.add(folderName);
 					ArrayList<FileProperties> filenameList = new ArrayList<FileProperties>();
 					filenameList.add(folderProperties);
 					metadataMap.put(folderProperties.getFileName(), filenameList);
@@ -576,16 +581,22 @@ public class PackageBuilder {
 				}
 
 				if (srcMd != null && srcMd.length > 0 
-						|| metadataType.equals("StandardValueSet")) { // hack alert - currently listMetadata call will return nothing for StandardValueSet
+						|| metadataType.equals("StandardValueSet")) { // hack alert - currently (API 44) listMetadata call will return nothing for StandardValueSet
 					if (!metadataType.equals("StandardValueSet")) {
 						for (FileProperties n : srcMd) {
 							if (n.getNamespacePrefix() == null || n.getNamespacePrefix().equals("")) {
-								packageMap.add(n.getFullName());	
+								packageInventoryList.put(n.getFullName(), new InventoryItem(n.getFullName(),n));	
 							}
 
 						}
-					} else {
-						for (String s : STANDARDVALUETYPESARRAY) packageMap.add(s);
+					} 
+						else {
+						
+						// create entries for the standard value sets without a FileProperties object
+						
+						for (String s : STANDARDVALUETYPESARRAY) {
+							packageInventoryList.put(s, new InventoryItem(s,null));
+						}
 					}
 
 
@@ -606,12 +617,15 @@ public class PackageBuilder {
 
 		} catch (ConnectionException ce) {
 			//			ce.printStackTrace();
-			System.out.println("Exception processing: " + metadataType);
-			System.out.println(ce.getMessage());
+			
+			log("\nException processing: " + metadataType, Loglevel.BRIEF);
+			log("Error: " + ce.getMessage(), Loglevel.BRIEF);
+//			System.out.println("Exception processing: " + metadataType);
+//			System.out.println(ce.getMessage());
 		}
 
 		endTiming();
-		return packageMap;
+		return packageInventoryList;
 	}
 
 	private void startTiming() {
