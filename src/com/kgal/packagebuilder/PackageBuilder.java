@@ -258,8 +258,18 @@ public class PackageBuilder {
 			// split into main folder + rest
 			
 			try {
-				String foldername = s.substring(0,s.indexOf(File.separator));
-				String filename = s.substring(s.indexOf(File.separator)+1);
+				
+				// ignore anything which doesn't have a path separator (i.e. not a folder)
+				
+				int separatorLocation = s.indexOf(File.separator);
+				
+				if (separatorLocation == -1) {
+					log("No folder in: " + s + ",skipping...", Loglevel.VERBOSE);
+					continue;
+				}
+				
+				String foldername = s.substring(0,separatorLocation);
+				String filename = s.substring(separatorLocation+1);
 				
 				// split off file name suffix
 				
