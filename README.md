@@ -1,11 +1,19 @@
 # PackageBuilder
 
-This is a tool for salesforce.com. It will connect to an org and generate a package.xml that can subsequently be used with the Force.com Migration Tool to extract code and metadata from an org.
+This is a tool for salesforce.com. It can do one of two things:
+* connect to an org and generate a package.xml that can subsequently be used with the Force.com Migration Tool to extract code and metadata from an org.
+* examine a directory containing an unzipped Force.com Migration Tool package and generate a package.xml 
 
 ### Usage:
 ``` 
 java -jar PackageBuilder.jar [-o <parameter file1>,<parameterfile2>,...] [-u <SF username>] [-p <SF password>] [-s <SF url>] [-a <apiversion>] [-mi <metadataType1>,<metadataType2>,...] [-sp <pattern1>,<pattern2>,...] [-d <destinationpath>] [-v]
-```    
+```
+
+or 
+``` 
+java -jar PackageBuilder.jar -d <destinationpath> -b <packagePath>
+```
+
 * -o,--orgfile <arg>          
 file containing org parameters (see below)
 * -u,--username <arg>         
@@ -22,6 +30,8 @@ metadata items to fetch
 patterns to skip when fetching
 * -d,--destination <arg>    
 directory where the generated package.xml will be written
+* -b,--basedirectory <arg>    
+directory where the the code will look for a SFDC package structure (e.g. classes folder, objects folder, etc.)
 * -v,--verbose                
 output verbose logging instead of just core output
 
@@ -32,7 +42,7 @@ The property files use standard Java property file format, i.e. `parameter=value
 
 ```property
 # equivalent to -a commandline parameter
-apiversion=39.0
+apiversion=44.0
 # equivalent to -mi commandline parameter
 metadataitems=ApexClass, ApexComponent, ApexPage
 # equivalent to -s commandline parameter
@@ -63,5 +73,9 @@ java -jar PackageBuilder.jar -d src -o packagebuilder.properties,org.properties 
 ```
 Will run the packagebuilder outputting `package.xml` to the `src` folder, using parameters specified in the `pacakgebuilder.properties` and `org.properties` 
 
+```
+java -jar PackageBuilder.jar -d dst -b src
+```
+Will run the packagebuilder, inventory the `src` directory and write a `dst/package.xml` file corresponding to the (recognized) content in the directory
 
 See properties files for additional detail - should be self-explanatory
