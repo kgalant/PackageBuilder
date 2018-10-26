@@ -71,6 +71,12 @@ public class PackageBuilder {
 	private String srcUrl ;
 	private String srcUser;
 	private String srcPwd;
+	
+	
+	// added for database handling
+	private String dbFilename;
+	private static final String DBFILENAMESUFFIX = ".packageBuilderDB";
+	
 
 	private static final String urlBase = "/services/Soap/u/";
 	private String targetDir = "";
@@ -153,6 +159,86 @@ public class PackageBuilder {
 			mode = OperationMode.ORG;
 		}
 		generatePackageXML(inventory);
+		updateDatabase(inventory);
+	}
+
+	// this method reads in any old database that may exist that matches the org 
+	// then runs the current inventory against that database to generate any updates/deletes
+	// and then writes the database file back
+	
+	
+	private void updateDatabase(HashMap<String, ArrayList<InventoryItem>> inventory) {
+		// construct org identified
+		String orgId = getOrgIdentifier();
+		
+		// read in old database (if any), generate one if not
+		InventoryDatabase database = getDatabase(orgId);		
+		
+		// run through current inventory, compare against db
+		doDatabaseUpdate(database, inventory);
+		
+		// write out new records to be added to database
+		
+		for (String type : database.updatedItems.keySet()) {
+			for (InventoryItem i : database.updatedItems.get(type)) {
+				System.out.println((i.isNew ? "New: " : "Updated: ") + i.toCSV());
+			}
+		}
+		
+		// output any new records to screen
+		
+	}
+	
+	// this method runs through the inventory, identifies any items that have changed since the database 
+	// was written and adds the relevant lines to the database
+	
+	// TODO: parameterized handling for deletes
+
+	private void doDatabaseUpdate(InventoryDatabase database,
+			HashMap<String, ArrayList<InventoryItem>> inventory) {
+
+		for (String metadataType : inventory.keySet()) {
+			doDatabaseUpdateForAType(metadataType, database, inventory.get(metadataType));
+		}
+		
+	}
+	
+	// this method compares the inventory to the database, and adds/updates as needed
+
+	private void doDatabaseUpdateForAType(String metadataType, InventoryDatabase database,
+			ArrayList<InventoryItem> inventory) {
+		
+		for (InventoryItem item : inventory) {
+			database.addIfNewOrUpdated(metadataType, item);
+		}
+		
+	}
+	
+	
+	// wraps the generations/fetching of an org id for database purposes
+
+	private String getOrgIdentifier() {
+		// TODO Auto-generated method stub
+		return "myOrg";
+	}
+	
+	// returns a database - either one we could read from file, or a newly initialized one
+
+	private InventoryDatabase getDatabase(String orgId) {
+		
+		InventoryDatabase newDatabase = null;
+		boolean databaseFileExists = false;
+		
+		// TODO find a database if it exists
+		
+		// placeholder for loading database file if it exists
+		if (databaseFileExists) {
+			newDatabase = InventoryDatabase.readDatabaseFromFile(dbFilename);
+			// TODO confirm that the orgid matches
+		} else {
+			newDatabase = new InventoryDatabase(orgId); 
+		}
+		return newDatabase;
 	}
 
 	private void generateInventoryFromOrg(HashMap<String, ArrayList<InventoryItem>> inventory) throws RemoteException, Exception {
