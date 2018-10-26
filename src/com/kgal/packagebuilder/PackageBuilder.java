@@ -49,16 +49,16 @@ public class PackageBuilder {
 		int getLevel() {return level;}
 
 	};
-	
+
 	public enum OperationMode {
 		DIR (0), ORG(1);
-		
+
 		private final int level;
 
 		OperationMode(int level) {
 			this.level = level;
 		}
-		
+
 		int getLevel() {return level;}
 	}
 
@@ -99,7 +99,7 @@ public class PackageBuilder {
 
 		PackageBuilder sample = new PackageBuilder();
 		setupOptions();
-		parseCommandLine(args);
+		sample.parseCommandLine(args);
 
 
 
@@ -134,14 +134,14 @@ public class PackageBuilder {
 		} else {
 			loglevel = Loglevel.BRIEF;
 		}
-		
+
 		// initialize inventory - it will be used in both types of operations
 		// (connect to org or run local)
-		
+
 		HashMap<String,ArrayList<String>> inventory = new HashMap<String,ArrayList<String>>(); 
 		myApiVersion = Double.parseDouble(parameters.get("apiversion"));
 		this.targetDir = Utils.checkPathSlash(Utils.checkPathSlash(parameters.get("targetdirectory")));
-		
+
 		// handling for building a package from a directory
 		// if we have a base directory set, ignore everything else and generate from the directory
 
@@ -156,45 +156,27 @@ public class PackageBuilder {
 	}
 
 	private void generateInventoryFromOrg(HashMap<String, ArrayList<String>> inventory) throws RemoteException, Exception {
-		HashSet<String> typesToFetch = new HashSet<String>();
-		String mdTypesToExamine = parameters.get("metadataitems");
 
-		for (String s : mdTypesToExamine.split(",")) {
-			typesToFetch.add(s.trim());
-		}
+		//		Initialize the metadata connection we're going to need
 
-		
 		srcUrl = parameters.get("sf_url") + urlBase + myApiVersion;
 		srcUser = parameters.get("sf_username");
 		srcPwd = parameters.get("sf_password");
 		skipItems = parameters.get("skipItems");
+		// Make a login call to source
+		this.srcMetadataConnection = LoginUtil.mdLogin(srcUrl, srcUser, srcPwd);
 
-		log("Will fetch: " + mdTypesToExamine + " from: " + srcUrl, Loglevel.BRIEF);
+		//		Figure out what we are going to be fetching
+
+		ArrayList<String> workToDo = new ArrayList<String>(getTypesToFetch());
+		Collections.sort(workToDo);
+
+		log("Will fetch: " + String.join(", ", workToDo) + " from: " + srcUrl, Loglevel.BRIEF);
 		log("Using user: " + srcUser + " skipping: " + skipItems, Loglevel.NORMAL);
-
-
-		
 
 		System.out.println("target directory: " + this.targetDir);
 
 		Utils.checkDir(targetDir);
-
-		
-
-		// Make a login call to source
-		this.srcMetadataConnection = LoginUtil.mdLogin(srcUrl, srcUser, srcPwd);
-
-		// get a describe
-
-		DescribeMetadataResult dmr = srcMetadataConnection.describeMetadata(myApiVersion);
-		describeMetadataObjectsMap = new HashMap<String, DescribeMetadataObject>();
-
-		for (DescribeMetadataObject obj : dmr.getMetadataObjects()) {
-			describeMetadataObjectsMap.put(obj.getXmlName(), obj);
-		}
-		ArrayList<String> workToDo = new ArrayList<String>(typesToFetch);
-
-		Collections.sort(workToDo);
 
 		Iterator<String> i = workToDo.iterator();
 		int counter = 0;
@@ -222,67 +204,98 @@ public class PackageBuilder {
 				log(" items: " + mdTypeItemList.size(), Loglevel.BRIEF);
 			}
 		}
-		
+
 	}
 
 	// added method for generating an inventory based on a local directory
 	// rather than an org
-	
+
+	private HashSet<String> getTypesToFetch() throws ConnectionException {
+
+		HashSet<String> typesToFetch = new HashSet<String>();
+		String mdTypesToExamine = parameters.get("metadataitems");
+		
+//		if a metadataitems parameter was provided, we use that
+		
+		if (mdTypesToExamine != null) {
+			for (String s : mdTypesToExamine.split(",")) {
+				typesToFetch.add(s.trim());
+			}
+		} else {
+//			no directions on what to fetch - go get everything
+			log("No metadataitems (-mi) parameter found, will inventory the whole org", Loglevel.BRIEF);
+			
+			// get a describe
+
+			DescribeMetadataResult dmr = this.srcMetadataConnection.describeMetadata(myApiVersion);
+			describeMetadataObjectsMap = new HashMap<String, DescribeMetadataObject>();
+
+			for (DescribeMetadataObject obj : dmr.getMetadataObjects()) {
+				describeMetadataObjectsMap.put(obj.getXmlName(), obj);
+			}
+			
+			for (String obj : describeMetadataObjectsMap.keySet()) {
+				typesToFetch.add(obj.trim());
+			}
+		}
+		return typesToFetch;
+	}
+
 	private void generateInventoryFromDir(HashMap<String, ArrayList<String>> inventory) throws IOException {
 		String basedir = parameters.get("basedirectory");
-		
+
 		// check if the directory is valid
-		
+
 		HashMap<String, HashSet<String>> myInventory = new HashMap<String, HashSet<String>>();
-		
+
 		if (!Utils.checkIsDirectory(basedir)) {
 			// log error and exit
-			
+
 			log("Base directory parameter provided: " + basedir + " invalid or is not a directory, cannot continue.", Loglevel.BRIEF);
 			System.exit(1);	
 		}
-		
+
 		// directory valid - enumerate and generate inventory
-		
+
 		Vector<String> filelist = generateFileList(new File(basedir), basedir);
-		
+
 		// so now we have a list of folders/files 
 		// need to convert to inventory for package.xml generator
-		
+
 		for(String s : filelist) {
 			// ignore -meta.xml
-			
-			
+
+
 			if (s.contains("-meta.xml")) continue;
-			
+
 			// split into main folder + rest
-			
+
 			try {
-				
+
 				// ignore anything which doesn't have a path separator (i.e. not a folder)
-				
+
 				int separatorLocation = s.indexOf(File.separator);
-				
+
 				if (separatorLocation == -1) {
 					log("No folder in: " + s + ",skipping...", Loglevel.VERBOSE);
 					continue;
 				}
-				
+
 				String foldername = s.substring(0,separatorLocation);
 				String filename = s.substring(separatorLocation+1);
-				
+
 				// split off file name suffix
-				
+
 				filename = filename.substring(0, filename.lastIndexOf("."));
-				
+
 				// ignore anything starting with a .
-				
+
 				if (filename.startsWith(".")) continue;
-				
+
 				// figure out based on foldername what the metadatatype is
-				
+
 				String mdType = Utils.getMetadataTypeForDir(foldername);
-				
+
 				// if not found, try lowercase
 				if (mdType == null) {
 					mdType = Utils.getMetadataTypeForDir(foldername.toLowerCase());
@@ -294,63 +307,63 @@ public class PackageBuilder {
 				}
 
 				// generate inventory entry
-				
+
 				HashSet<String> typeInventory = myInventory.get(mdType);
 				if (typeInventory == null) {
 					typeInventory = new HashSet<String>();
 					myInventory.put(mdType, typeInventory);
 					System.out.println("Created inventory record for type: " + mdType);
 				}
-				
+
 				// check if there is a folder in the filename and it's aura - then we need to leave the folder, skip the item
-				
+
 				if (filename.contains("/") && mdType.equals("AuraDefinitionBundle")) {
 					String subFoldername = filename.substring(0,filename.indexOf("/"));
 					typeInventory.add(subFoldername);
 					log("Added: " + mdType + " : " + subFoldername + ", to inventory, original path: " + s, Loglevel.NORMAL);
 					continue;
 				}
-				
+
 				// check if there is a folder in the filename - then we need to add the folder as well
-				
+
 				if (filename.contains("/")) {
 					String subFoldername = filename.substring(0,filename.indexOf("/"));
 					typeInventory.add(subFoldername);
 				}
-				
+
 				typeInventory.add(filename);
 				log("Added: " + mdType + " : " + filename + ", to inventory, original path: " + s, Loglevel.NORMAL);
-				
+
 				// convert myinventory to the right return type
-				
-				
+
+
 			} catch (Exception e) {
-//				Something bad happened
+				//				Something bad happened
 				System.out.println("Something bad happened on file: " + s + ", skipping...");
 			}
-			
-			
+
+
 		}
 		for (String myMdType : myInventory.keySet()) {
 			ArrayList<String> invType = new ArrayList<String>();
 			invType.addAll(myInventory.get(myMdType));
 			inventory.put(myMdType, invType);
 		}
-		
-		
-		
+
+
+
 		//
-		
+
 	}
-	
+
 	private static Vector<String> generateFileList(File node, String baseDir) {
 
 		Vector<String> retval = new Vector<String>();
 		// add file only
 		if (node.isFile()) {
 			retval.add(generateZipEntry(node.getAbsoluteFile().toString(), baseDir));
-//			retval.add(baseDir + "/" + node.getAbsoluteFile().toString());
-//			retval.add(node.getName()); 
+			//			retval.add(baseDir + "/" + node.getAbsoluteFile().toString());
+			//			retval.add(node.getName()); 
 		} else if (node.isDirectory()) {
 			String[] subNote = node.list();
 			for (String filename : subNote) {
@@ -359,16 +372,16 @@ public class PackageBuilder {
 		}
 		return retval;
 	}
-	
+
 	private static String generateZipEntry(String file, String sourceFolder) {
 		int indexOfSourceFolder = file.lastIndexOf(sourceFolder);
 		return file.substring(indexOfSourceFolder + sourceFolder.length() + 1, file.length()); 
 	}
-	
+
 	// inventory is a list of lists
 	// keys are the metadata types
 	// e.g. flow, customobject, etc.
-	
+
 
 	private void generatePackageXML(HashMap<String, ArrayList<String>> inventory) throws ConnectionException, IOException {
 		StringBuffer packageXML = new StringBuffer();
@@ -394,8 +407,8 @@ public class PackageBuilder {
 				}
 			}
 		}
-		
-		
+
+
 		boolean shouldSkip = false;
 
 		for (String mdType : types) {
@@ -459,7 +472,7 @@ public class PackageBuilder {
 
 			// special treatment for flows
 			// make a callout to Tooling API to get latest version for Active flows (which the s..... Metadata API won't give you)
-			
+
 			// only do this if we're running in org mode
 
 			if (mdType.toLowerCase().equals("flow") && mode == OperationMode.ORG) {
@@ -481,7 +494,7 @@ public class PackageBuilder {
 
 
 			}
-			
+
 			packageXML.append("\t</types>\n");
 		}
 
@@ -683,7 +696,7 @@ public class PackageBuilder {
 		formatter.printHelp( "java -jar PackageBuilder.jar [-b basedirectory] [-o <parameter file1>,<parameter file2>] [-u <SF username>] [-p <SF password>]", options );
 	}
 
-	private static void parseCommandLine(String[] args) {
+	private void parseCommandLine(String[] args) {
 
 		parameters.put("apiversion", "" + API_VERSION);
 		parameters.put("metadataitems", null);
@@ -767,20 +780,32 @@ public class PackageBuilder {
 			if (line.hasOption("v")) {
 				parameters.put("loglevel", "verbose");
 			}
+			
+//			add default to current directory if no target directory given
+			
+			if (!isParameterProvided("targetdirectory")) {
+				log("No target directory provided, will default to current directory.", Loglevel.BRIEF);
+				parameters.put("targetdirectory",".");				
+			}
+			
 
 			// check that we have the minimum parameters
 			// either b(asedir) and d(estinationdir)
 			// or s(f_url), p(assword), u(sername), mi(metadataitems)
 			boolean canProceed = false;
-			
+
 			if (isParameterProvided("basedirectory") &&
-				isParameterProvided("targetdirectory")) {
+					isParameterProvided("targetdirectory")) {
 				canProceed = true;
 			} else {
 				if (isParameterProvided("sf_url") &&
-					isParameterProvided("sf_password") &&
-					isParameterProvided("sf_password") &&
-					isParameterProvided("metadataitems")) {
+						isParameterProvided("sf_password") &&
+						isParameterProvided("sf_password") 
+//						
+//						no longer required since we can inventory the org
+//						&& isParameterProvided("metadataitems")	
+//						
+					) {
 					canProceed = true; 
 				} else {
 					System.out.println("Mandatory parameters not provided in files or commandline -"
@@ -791,7 +816,7 @@ public class PackageBuilder {
 					}
 				}
 			}
-			
+
 			for (String key : parameters.keySet()) {
 				System.out.println(key + ":" + parameters.get(key));
 			}
@@ -802,7 +827,7 @@ public class PackageBuilder {
 			}
 		} else printHelp();
 	}
-	
+
 	private static boolean isParameterProvided(String parameterName) {
 		if (parameters.get(parameterName) != null && parameters.get(parameterName).length() > 0) {
 			return true;
@@ -811,7 +836,7 @@ public class PackageBuilder {
 	}
 
 	private void log (String logText, Loglevel level) {
-		if (level.getLevel() <= loglevel.getLevel()) {
+		if (loglevel == null || level.getLevel() <= loglevel.getLevel()) {
 			System.out.println (logText);
 		}
 	}
