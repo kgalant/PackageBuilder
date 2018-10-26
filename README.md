@@ -14,25 +14,25 @@ or
 java -jar PackageBuilder.jar -d <destinationpath> -b <packagePath>
 ```
 
-* -o,--orgfile <arg>          
+* -o,--orgfile `<arg>`          
 file containing org parameters (see below)
-* -u,--username <arg>         
+* -u,--username `<arg>`         
 username for the org (someuser@someorg.com)
-* -p,--password <arg>        
+* -p,--password `<arg>`        
 password for the org (t0pSecr3t)
-* -s,--serverurl <arg>        
+* -s,--serverurl `<arg>`        
 server URL for the org (https://login.salesforce.com)
-* -a,--apiversion <arg>       
+* -a,--apiversion `<arg>`
 api version to use, will default to 38.0
-* -mi,--metadataitems <arg>   
-metadata items to fetch
-* -sp,--skippatterns <arg>    
+* -mi,--metadataitems `<arg>`   
+metadata items to fetch (commaseparated list of metadata types in package.xml naming). If this parameter is not provided, PackageBuilder will query the org and inventory everything a Metadata Describe returns to it.
+* -sp,--skippatterns `<arg>`    
 patterns to skip when fetching
-* -d,--destination <arg>    
+* -d,--destination `<arg>`    
 directory where the generated package.xml will be written
-* -b,--basedirectory <arg>    
+* -b,--basedirectory `<arg>`    
 directory where the the code will look for a SFDC package structure (e.g. classes folder, objects folder, etc.)
-* -v,--verbose                
+* -v,--verbose
 output verbose logging instead of just core output
 
 All parameters can be provided in parameter files specified with the -o parameter. More than one file can be provided (as in the example below, where one file would define what to fetch, skippatterns, etc., and the other where to fetch from). If any parameters are provided both in files and on the command line, the command line ones will be used. 
