@@ -75,6 +75,7 @@ public class PackageBuilder {
 	private static final String urlBase = "/services/Soap/u/";
 	private String targetDir = "";
 
+	private static final int MAXITEMSINPACKAGE = 10000;
 	private static final double API_VERSION = 44.0;
 	private static double myApiVersion;
 	private static String skipItems;
@@ -214,17 +215,17 @@ public class PackageBuilder {
 
 		HashSet<String> typesToFetch = new HashSet<String>();
 		String mdTypesToExamine = parameters.get("metadataitems");
-		
-//		if a metadataitems parameter was provided, we use that
-		
+
+		//		if a metadataitems parameter was provided, we use that
+
 		if (mdTypesToExamine != null) {
 			for (String s : mdTypesToExamine.split(",")) {
 				typesToFetch.add(s.trim());
 			}
 		} else {
-//			no directions on what to fetch - go get everything
+			//			no directions on what to fetch - go get everything
 			log("No metadataitems (-mi) parameter found, will inventory the whole org", Loglevel.BRIEF);
-			
+
 			// get a describe
 
 			DescribeMetadataResult dmr = this.srcMetadataConnection.describeMetadata(myApiVersion);
@@ -233,7 +234,7 @@ public class PackageBuilder {
 			for (DescribeMetadataObject obj : dmr.getMetadataObjects()) {
 				describeMetadataObjectsMap.put(obj.getXmlName(), obj);
 			}
-			
+
 			for (String obj : describeMetadataObjectsMap.keySet()) {
 				typesToFetch.add(obj.trim());
 			}
@@ -382,17 +383,193 @@ public class PackageBuilder {
 	// keys are the metadata types
 	// e.g. flow, customobject, etc.
 
+	/*	private void writePackageXmlFile(HashMap<String, ArrayList<String>> theMap, String filename)
+	 * 
+	 * this method will generate a package.xml file based on a HashMap<String, ArrayList<String>> and a filename 
+	used to cater for big orgs that burst limits
+	input hashmap structure:
+	ApexClass -> [Class1,Class2]
+	ApexTrigger -> [Trigger1,Trigger2]
 
-	private void generatePackageXML(HashMap<String, ArrayList<String>> inventory) throws ConnectionException, IOException {
+	expecting only to see types which are populated (i.e. have at least 1 item)
+
+	Expected output:
+	<types>
+		<name>ApexClass</name>
+		<members>Class1</members>
+		<members>Class2</members>
+	</types>
+	<types>
+		<name>ApexTrigger</name>
+		<members>Trigger1</members>
+		<members>Trigger2</members>
+	</types>
+
+	 */	
+	private void writePackageXmlFile(HashMap<String, ArrayList<String>> theMap, String filename) throws IOException {
 		StringBuffer packageXML = new StringBuffer();
-		int itemCount = 0;
-		int skipCount = 0;
 		packageXML.append("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n");
 		packageXML.append("<Package xmlns=\"http://soap.sforce.com/2006/04/metadata\">\n");
+
+
+		ArrayList<String> mdTypes = new ArrayList<String>(theMap.keySet());
+		Collections.sort(mdTypes);
+
+
+		for (String mdType : mdTypes) {
+			packageXML.append("\t<types>\n");
+			packageXML.append("\t\t<name>" + mdType + "</name>\n");
+
+			for (String mdName : theMap.get(mdType)) {
+				packageXML.append("\t\t<members>" + mdName + "</members>\n");	
+			}
+			packageXML.append("\t</types>\n");
+		}
+		packageXML.append("\t<version>" + myApiVersion + "</version>\n");
+		packageXML.append("</Package>\n");
+
+		Utils.writeFile(targetDir + filename, packageXML.toString());
+		log("Writing " + new File (targetDir + filename).getCanonicalPath(), Loglevel.BRIEF);
+	}
+
+
+
+	private void generatePackageXML(HashMap<String, ArrayList<String>> inventory) throws ConnectionException, IOException {
+
+		int itemCount = 0;
+		int skipCount = 0;
+
+		HashMap<String, ArrayList<String>> myFile = new HashMap<String, ArrayList<String>>();
 
 		ArrayList<String> types = new ArrayList<String>();
 		types.addAll(inventory.keySet());
 		Collections.sort(types);
+
+		for (String mdType : types) {
+
+			//			check if we have any items in this category
+
+			ArrayList<String> items = inventory.get(mdType);
+			if (items.size() < 1) {
+				continue;
+			}
+
+			myFile.put(mdType, new ArrayList<String>());
+
+			Collections.sort(items);
+			for (String item : items) {
+
+
+
+				// special treatment for flows
+				// get rid of items returned without a version number
+				//		<members>Update_Campaign_path_on_oppty</members>  ****  FILTER THIS ONE OUT SO IT DOESN'T APPEAR***
+				//		<members>Update_Campaign_path_on_oppty-4</members>
+				//		<members>Update_Campaign_path_on_oppty-5</members>
+
+				if (mdType.toLowerCase().equals("flow") && FILTERVERSIONLESSFLOWS) {
+					if (!item.contains("-")) {
+						// we won't count this one as skipped, since it shouldn't be there in the first place
+						continue;
+					}
+				}
+				myFile.get(mdType).add(item);
+				itemCount++;
+			}
+
+			// special treatment for flows
+			// make a callout to Tooling API to get latest version for Active flows (which the shi+ Metadata API won't give you)
+
+			// only do this if we're running in org mode
+
+			if (mdType.toLowerCase().equals("flow") && mode == OperationMode.ORG) {
+
+
+				String flowQuery = 	"SELECT DeveloperName ,ActiveVersion.VersionNumber " +
+						"FROM FlowDefinition " +
+						"WHERE ActiveVersion.VersionNumber <> NULL";
+
+				this.srcToolingConnection = LoginUtil.toolingLogin(srcUrl, srcUser, srcPwd);
+				com.sforce.soap.tooling.QueryResult qr = srcToolingConnection.query(flowQuery);
+				com.sforce.soap.tooling.sobject.SObject[] records = qr.getRecords();
+				for (com.sforce.soap.tooling.sobject.SObject record : records) {
+					com.sforce.soap.tooling.sobject.FlowDefinition fd = (com.sforce.soap.tooling.sobject.FlowDefinition) record;
+					myFile.get(mdType).add(fd.getDeveloperName() + "-" + fd.getActiveVersion().getVersionNumber());
+					itemCount++;
+				}
+			}
+		}
+
+		//		now check if anything we have needs to be skipped
+
+		skipCount = handleSkippingItems(myFile);
+
+		//		now break it up into files if needed
+
+		HashMap<String, ArrayList<String>>[] files = breakPackageIntoFiles(myFile);
+
+		for (int i = 0; i < files.length; i++) {
+			if (i == 0) {
+				writePackageXmlFile(files[i], "package.xml");
+			} else {
+				writePackageXmlFile(files[i], "package." + i + ".xml");
+			}
+		}
+
+
+
+		ArrayList<String> typesFound = new ArrayList<String>(existingTypes);
+		Collections.sort(typesFound);
+
+		log("Types found in org: " + typesFound.toString(), Loglevel.BRIEF);
+
+		log("Total items in package.xml: " + itemCount, Loglevel.BRIEF);
+		log("Total items skipped: " + skipCount + " (excludes count of items in type where entire type was skipped)", Loglevel.NORMAL);
+	}
+
+	private HashMap<String, ArrayList<String>>[] breakPackageIntoFiles(HashMap<String, ArrayList<String>> myFile) {
+
+		ArrayList<HashMap<String, ArrayList<String>>> files = new ArrayList<HashMap<String, ArrayList<String>>>();
+		int fileIndex = 0;
+		int fileCount = 0;
+		HashMap<String, ArrayList<String>> currentFile = new HashMap<String, ArrayList<String>>();
+		for (String mdType : myFile.keySet()) {
+			ArrayList<String> mdTypeList = myFile.get(mdType);
+			int mdTypeSize = mdTypeList.size();
+			
+			
+//			do we have room in this file for the 
+			if (fileCount + mdTypeSize > MAXITEMSINPACKAGE) {
+//				no, we don't, finish file off, add to list, create new and add to that
+				files.add(currentFile);
+				currentFile = new HashMap<String, ArrayList<String>>();
+				
+				log("Finished composing file " + fileIndex + ", total count: " + fileCount + "items.", Loglevel.NORMAL);
+				fileCount = 0;
+				fileIndex++;
+			}
+//			now add this type to this file and continue
+			currentFile.put(mdType, mdTypeList);
+			fileCount += mdTypeSize;
+			log("Adding type: " + mdType + "(" + mdTypeSize + " items) to file " + fileIndex + ", total count now: " + fileCount, Loglevel.NORMAL);
+		}
+		
+//		finish off any last file
+		files.add(currentFile);		
+		log("Finished composing file " + fileIndex + ", total count: " + fileCount + "items.", Loglevel.NORMAL);
+		
+		
+		@SuppressWarnings("unchecked")
+		HashMap<String, ArrayList<String>>[] retval = (HashMap<String, ArrayList<String>>[]) new HashMap[files.size()];
+		
+		retval = files.toArray(retval);
+
+		return retval;
+	}
+
+	private int handleSkippingItems(HashMap<String, ArrayList<String>> myFile) {
+
+		int skipCount = 0;
 
 		//		Initiate patterns array
 		//		TODO: handle non-existent parameter in the config files
@@ -408,11 +585,7 @@ public class PackageBuilder {
 			}
 		}
 
-
-		boolean shouldSkip = false;
-
-		for (String mdType : types) {
-			shouldSkip = false;
+		for (String mdType : myFile.keySet()) {
 			//			first, check if any of the patterns match the whole type
 			String mdTypeFullName = mdType + ":";
 			for (Pattern p : skipPatterns) {
@@ -420,97 +593,32 @@ public class PackageBuilder {
 				Matcher m = p.matcher(mdTypeFullName);
 				if (m.matches()) {
 					log("Skip pattern: " + p.pattern() + " matches the metadata type: " + mdTypeFullName + ", entire type will be skipped.", Loglevel.NORMAL);
-					shouldSkip = true;
-					break;
+
+					// remove the whole key from the file
+
+					skipCount += myFile.get(mdType).size();
+
+					myFile.remove(mdType);
+					continue;
+
 				}
 			}
 
-			//			check if we have any items in this category
-
-			ArrayList<String> items = inventory.get(mdType);
-			if (items.size() < 1) {
-				shouldSkip = true;
-			}
-
-			if (shouldSkip) {
-				continue;
-			}
-
-			packageXML.append("\t<types>\n");
-			packageXML.append("\t\t<name>" + mdType + "</name>\n");
+			ArrayList<String> items = myFile.get(mdType);
 			Collections.sort(items);
-			for (String item : items) {
-				shouldSkip = false;
-				mdTypeFullName = mdType + ":" + item;
+			for (int i = 0; i < items.size(); i++) {
+				mdTypeFullName = mdType + ":" + items.get(i);
 				for (Pattern p : skipPatterns) {
 					Matcher m = p.matcher(mdTypeFullName);
 					if (m.matches()) {
 						log("Skip pattern: " + p.pattern() + " matches the metadata item: " + mdTypeFullName + ", item will be skipped.", Loglevel.NORMAL);
-						shouldSkip = true;
+						items.remove(i);
 						skipCount++;
-						break;
 					}
 				}
-
-				// special treatment for flows
-				// get rid of items returned without a version number
-				//		<members>Update_Campaign_path_on_oppty</members>  ****  FILTER THIS ONE OUT SO IT DOESN'T APPEAR***
-				//		<members>Update_Campaign_path_on_oppty-4</members>
-				//		<members>Update_Campaign_path_on_oppty-5</members>
-
-				if (mdType.toLowerCase().equals("flow") && FILTERVERSIONLESSFLOWS) {
-					if (!item.contains("-")) {
-						// we won't count this one as skipped, since it shouldn't be there in the first place
-						shouldSkip = true;
-					}
-				}
-				if (!shouldSkip) {
-					packageXML.append("\t\t<members>" + item + "</members>\n");	
-					itemCount++;
-				}
 			}
-
-			// special treatment for flows
-			// make a callout to Tooling API to get latest version for Active flows (which the s..... Metadata API won't give you)
-
-			// only do this if we're running in org mode
-
-			if (mdType.toLowerCase().equals("flow") && mode == OperationMode.ORG) {
-
-				packageXML.append("\n\t\t<!-- Active flow versions below this comment -->\n\n");
-
-				String flowQuery = 	"SELECT DeveloperName ,ActiveVersion.VersionNumber " +
-						"FROM FlowDefinition " +
-						"WHERE ActiveVersion.VersionNumber <> NULL";
-
-				this.srcToolingConnection = LoginUtil.toolingLogin(srcUrl, srcUser, srcPwd);
-				com.sforce.soap.tooling.QueryResult qr = srcToolingConnection.query(flowQuery);
-				com.sforce.soap.tooling.sobject.SObject[] records = qr.getRecords();
-				for (com.sforce.soap.tooling.sobject.SObject record : records) {
-					com.sforce.soap.tooling.sobject.FlowDefinition fd = (com.sforce.soap.tooling.sobject.FlowDefinition) record;
-					packageXML.append("\t\t<members>" + fd.getDeveloperName() + "-" + fd.getActiveVersion().getVersionNumber() + "</members>\n");	
-					itemCount++;
-				}
-
-
-			}
-
-			packageXML.append("\t</types>\n");
 		}
-
-		packageXML.append("\t<version>" + myApiVersion + "</version>\n");
-		packageXML.append("</Package>\n");
-
-		Utils.writeFile(targetDir + "package.xml", packageXML.toString());
-		log("Writing " + new File (targetDir + "package.xml").getCanonicalPath(), Loglevel.BRIEF);
-
-		ArrayList<String> typesFound = new ArrayList<String>(existingTypes);
-		Collections.sort(typesFound);
-
-		log("Types found in org: " + typesFound.toString(), Loglevel.BRIEF);
-
-		log("Total items in package.xml: " + itemCount, Loglevel.BRIEF);
-		log("Total items skipped: " + skipCount + " (excludes count of items in type where entire type was skipped)", Loglevel.NORMAL);
+		return skipCount;
 	}
 
 	private ArrayList<String> fetchMetadataType (String metadataType) throws RemoteException, Exception {
@@ -780,14 +888,14 @@ public class PackageBuilder {
 			if (line.hasOption("v")) {
 				parameters.put("loglevel", "verbose");
 			}
-			
-//			add default to current directory if no target directory given
-			
+
+			//			add default to current directory if no target directory given
+
 			if (!isParameterProvided("targetdirectory")) {
 				log("No target directory provided, will default to current directory.", Loglevel.BRIEF);
 				parameters.put("targetdirectory",".");				
 			}
-			
+
 
 			// check that we have the minimum parameters
 			// either b(asedir) and d(estinationdir)
@@ -801,11 +909,11 @@ public class PackageBuilder {
 				if (isParameterProvided("sf_url") &&
 						isParameterProvided("sf_password") &&
 						isParameterProvided("sf_password") 
-//						
-//						no longer required since we can inventory the org
-//						&& isParameterProvided("metadataitems")	
-//						
-					) {
+						//						
+						//						no longer required since we can inventory the org
+						//						&& isParameterProvided("metadataitems")	
+						//						
+						) {
 					canProceed = true; 
 				} else {
 					System.out.println("Mandatory parameters not provided in files or commandline -"
