@@ -160,9 +160,9 @@ public class PackageBuilder {
 
 		//		Initialize the metadata connection we're going to need
 
-		srcUrl = parameters.get("sf_url") + urlBase + myApiVersion;
-		srcUser = parameters.get("sf_username");
-		srcPwd = parameters.get("sf_password");
+		srcUrl = parameters.get("serverurl") + urlBase + myApiVersion;
+		srcUser = parameters.get("username");
+		srcPwd = parameters.get("password");
 		skipItems = parameters.get("skipItems");
 		// Make a login call to source
 		this.srcMetadataConnection = LoginUtil.mdLogin(srcUrl, srcUser, srcPwd);
@@ -809,9 +809,9 @@ public class PackageBuilder {
 		parameters.put("apiversion", "" + API_VERSION);
 		parameters.put("metadataitems", null);
 		parameters.put("skipItems", null);
-		parameters.put("sf_url", null);
-		parameters.put("sf_username", null);
-		parameters.put("sf_password", null);
+		parameters.put("serverurl", null);
+		parameters.put("username", null);
+		parameters.put("password", null);
 		parameters.put("targetdirectory", null);
 
 		// adding handling for building a package from a directory
@@ -842,9 +842,9 @@ public class PackageBuilder {
 					System.out.println("Loading parameters from file: " + paramFileName);
 					parameters.put("apiversion", props.getProperty("apiversion") == null ? parameters.get("apiversion") : "" + Double.parseDouble(props.getProperty("apiversion")));
 					parameters.put("metadataitems", props.getProperty("metadataitems") == null ? parameters.get("metadataitems") : props.getProperty("metadataitems"));
-					parameters.put("sf_url", props.getProperty("sf_url") == null ? parameters.get("sf_url") : props.getProperty("sf_url"));
-					parameters.put("sf_username", props.getProperty("sf_username") == null ? parameters.get("sf_username") : props.getProperty("sf_username"));
-					parameters.put("sf_password", props.getProperty("sf_password") == null ? parameters.get("sf_password") : props.getProperty("sf_password"));
+					parameters.put("serverurl", props.getProperty("serverurl") == null ? parameters.get("serverurl") : props.getProperty("serverurl"));
+					parameters.put("username", props.getProperty("username") == null ? parameters.get("username") : props.getProperty("username"));
+					parameters.put("password", props.getProperty("password") == null ? parameters.get("password") : props.getProperty("password"));
 					parameters.put("skipItems", props.getProperty("skipItems") == null ? parameters.get("skipItems") : props.getProperty("skipItems"));
 					parameters.put("basedirectory", props.getProperty("basedirectory") == null ? parameters.get("basedirectory") : props.getProperty("basedirectory"));
 
@@ -859,13 +859,13 @@ public class PackageBuilder {
 				parameters.put("apiversion", line.getOptionValue("a"));
 			}
 			if (line.hasOption("u") && line.getOptionValue("u") != null && line.getOptionValue("u").length() > 0) {
-				parameters.put("sf_username", line.getOptionValue("u"));
+				parameters.put("username", line.getOptionValue("u"));
 			}
 			if (line.hasOption("s") && line.getOptionValue("s") != null && line.getOptionValue("s").length() > 0) {
-				parameters.put("sf_url", line.getOptionValue("s"));
+				parameters.put("serverurl", line.getOptionValue("s"));
 			}
 			if (line.hasOption("p") && line.getOptionValue("p") != null && line.getOptionValue("p").length() > 0) {
-				parameters.put("sf_password", line.getOptionValue("p"));
+				parameters.put("password", line.getOptionValue("p"));
 			}
 			if (line.hasOption("mi") && line.getOptionValue("mi") != null && line.getOptionValue("mi").length() > 0) {
 				parameters.put("metadataitems", line.getOptionValue("mi"));
@@ -906,9 +906,9 @@ public class PackageBuilder {
 					isParameterProvided("targetdirectory")) {
 				canProceed = true;
 			} else {
-				if (isParameterProvided("sf_url") &&
-						isParameterProvided("sf_password") &&
-						isParameterProvided("sf_password") 
+				if (isParameterProvided("serverurl") &&
+						isParameterProvided("password") &&
+						isParameterProvided("password") 
 						//						
 						//						no longer required since we can inventory the org
 						//						&& isParameterProvided("metadataitems")	
@@ -917,7 +917,7 @@ public class PackageBuilder {
 					canProceed = true; 
 				} else {
 					System.out.println("Mandatory parameters not provided in files or commandline -"
-							+ " either basedir and destination or sf_url, username, password and metadataitems required as minimum");
+							+ " either basedir and destination or serverurl, username, password and metadataitems required as minimum");
 					System.out.println("Visible parameters:");
 					for (String key : parameters.keySet()) {
 						System.out.println(key + ":" + parameters.get(key));
