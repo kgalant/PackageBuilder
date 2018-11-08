@@ -20,6 +20,14 @@
 		</license>
 	</licenses>
 
+	<repositories>
+		<repository>
+			<id>data-local</id>
+			<name>data</name>
+			<url>file://${project.basedir}/src/main/lib</url>
+		</repository>
+	</repositories>
+
 	<build>
 		<resources>
 			<resource>
@@ -55,6 +63,8 @@
 									</manifestEntries>
 								</transformer>
 							</transformers>
+							<artifactSet />
+							<outputFile>${project.basedir}/${project.artifactId}.jar</outputFile>
 						</configuration>
 					</execution>
 				</executions>
@@ -75,7 +85,12 @@
 			<artifactId>force-metadata-api</artifactId>
 			<version>44.0.0</version>
 		</dependency>
-
+		<!-- local tooling API -->
+		<dependency>
+			<groupId>sfdc</groupId>
+			<artifactId>tooling</artifactId>
+			<version>38.0</version>
+		</dependency>
 	</dependencies>
 
 </project>
