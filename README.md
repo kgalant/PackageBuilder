@@ -46,11 +46,11 @@ apiversion=44.0
 # equivalent to -mi commandline parameter
 metadataitems=ApexClass, ApexComponent, ApexPage
 # equivalent to -s commandline parameter
-sf_url=https://login.salesforce.com
+sf.serverurl=https://login.salesforce.com
 # equivalent to -u commandline parameter
-sf_username=my@user.name
+sf.username=my@user.name
 # equivalent to -p commandline parameter
-sf_password=t0ps3cr3t
+sf.password=t0ps3cr3t
 # equivalent to -sp commandline parameter
 skipItems=.*fflib_.*,.*Class:AWS.*,ApexPage.*
 # equivalent to -d commandline parameter
