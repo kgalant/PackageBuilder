@@ -33,7 +33,6 @@ import org.apache.commons.cli.Option;
 import org.apache.commons.cli.Options;
 import org.apache.commons.cli.ParseException;
 
-import com.kgal.SFLogin.LoginUtil;
 import com.salesforce.migrationtoolutils.Utils;
 
 public class PackageBuilder {
