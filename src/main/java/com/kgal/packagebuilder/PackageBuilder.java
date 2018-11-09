@@ -839,11 +839,11 @@ public class PackageBuilder {
 				for (String paramFileName : paramFilesParameter.split(",")) {
 					Properties props = Utils.initProps(paramFileName.trim());
 					System.out.println("Loading parameters from file: " + paramFileName);
-					parameters.put("apiversion", props.getProperty("apiversion") == null ? parameters.get("apiversion") : "" + Double.parseDouble(props.getProperty("apiversion")));
+					parameters.put("apiversion", props.getProperty("sf.apiversion") == null ? parameters.get("apiversion") : "" + Double.parseDouble(props.getProperty("sf.apiversion")));
 					parameters.put("metadataitems", props.getProperty("metadataitems") == null ? parameters.get("metadataitems") : props.getProperty("metadataitems"));
-					parameters.put("serverurl", props.getProperty("serverurl") == null ? parameters.get("serverurl") : props.getProperty("serverurl"));
-					parameters.put("username", props.getProperty("username") == null ? parameters.get("username") : props.getProperty("username"));
-					parameters.put("password", props.getProperty("password") == null ? parameters.get("password") : props.getProperty("password"));
+					parameters.put("serverurl", props.getProperty("sf.serverurl") == null ? parameters.get("serverurl") : props.getProperty("sf.serverurl"));
+					parameters.put("username", props.getProperty("sf.username") == null ? parameters.get("username") : props.getProperty("sf.username"));
+					parameters.put("password", props.getProperty("sf.password") == null ? parameters.get("password") : props.getProperty("sf.password"));
 					parameters.put("skipItems", props.getProperty("skipItems") == null ? parameters.get("skipItems") : props.getProperty("skipItems"));
 					parameters.put("basedirectory", props.getProperty("basedirectory") == null ? parameters.get("basedirectory") : props.getProperty("basedirectory"));
 
