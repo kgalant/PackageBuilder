@@ -214,6 +214,15 @@ public class PackageBuilder {
 
 		HashSet<String> typesToFetch = new HashSet<String>();
 		String mdTypesToExamine = parameters.get("metadataitems");
+		
+		// get a describe
+
+		DescribeMetadataResult dmr = this.srcMetadataConnection.describeMetadata(myApiVersion);
+		describeMetadataObjectsMap = new HashMap<String, DescribeMetadataObject>();
+
+		for (DescribeMetadataObject obj : dmr.getMetadataObjects()) {
+			describeMetadataObjectsMap.put(obj.getXmlName(), obj);
+		}
 
 		//		if a metadataitems parameter was provided, we use that
 
@@ -224,16 +233,7 @@ public class PackageBuilder {
 		} else {
 			//			no directions on what to fetch - go get everything
 			log("No metadataitems (-mi) parameter found, will inventory the whole org", Loglevel.BRIEF);
-
-			// get a describe
-
-			DescribeMetadataResult dmr = this.srcMetadataConnection.describeMetadata(myApiVersion);
-			describeMetadataObjectsMap = new HashMap<String, DescribeMetadataObject>();
-
-			for (DescribeMetadataObject obj : dmr.getMetadataObjects()) {
-				describeMetadataObjectsMap.put(obj.getXmlName(), obj);
-			}
-
+			
 			for (String obj : describeMetadataObjectsMap.keySet()) {
 				typesToFetch.add(obj.trim());
 			}
