@@ -3,3 +3,13 @@ target/
 .classpath
 .settings
 .DS_Store
+/bin/
+jar-in-jar-loader.zip
+package.1.xml
+package.2.xml
+package.xml
+package.xml.old
+sampleProperties/daimler.properties
+sampleProperties/fetch.properties
+sampleProperties/lightningLayouts.properties
+sampleProperties/sample.properties
