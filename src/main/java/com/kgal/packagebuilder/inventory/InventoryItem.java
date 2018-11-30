@@ -11,6 +11,8 @@ public class InventoryItem {
 	public int itemVersion;
 	public boolean isNew;
 	public boolean isUpdated;
+	public String lastModifiedByEmail;
+	public String lastModifiedByUsername;
 	
 	public InventoryItem(String i, FileProperties f, boolean isF) {
 		this.itemName = i;
@@ -25,43 +27,43 @@ public class InventoryItem {
 	}
 
 	public String getId() {
-		return fp.getId();
+		return fp == null ? null : fp.getId();
 	}
 	
 	public String getCreatedById() {
-		return fp.getCreatedById();
+		return fp == null ? null : fp.getCreatedById();
 	}
 	
 	public String getCreatedByName() {
-		return fp.getCreatedByName();
+		return fp == null ? null : fp.getCreatedByName();
 	}
 	
 	public String getFileName() {
-		return fp.getFileName();
+		return fp == null ? null : fp.getFileName();
 	}
 	
 	public String getFullName() {
-		return fp.getFullName();
+		return fp == null ? null : fp.getFullName();
 	}
 	
 	public String getLastModifiedById() {
-		return fp.getLastModifiedById();
+		return fp == null ? null : fp.getLastModifiedById();
 	}
 	
 	public String getLastModifiedByName() {
-		return fp.getLastModifiedByName();
+		return fp == null ? null : fp.getLastModifiedByName();
 	}
 	
 	public Calendar getLastModifiedDate() {
-		return fp.getLastModifiedDate();
+		return fp == null ? null : fp.getLastModifiedDate();
 	}
 	
 	public Calendar getCreatedDate() {
-		return fp.getCreatedDate();
+		return fp == null ? null : fp.getCreatedDate();
 	}
 	
 	public String getType() {
-		return fp.getType();
+		return fp == null ? null : fp.getType();
 	}
 	
 	public String toCSV() {
@@ -72,7 +74,7 @@ public class InventoryItem {
 				getLastModifiedByName() + "," +
 				getCreatedDate() + "," +
 				getCreatedByName() + "," +
-				fp.getId() + ",";
+				fp == null ? null : fp.getId() + ",";
 				
 	}
 }
