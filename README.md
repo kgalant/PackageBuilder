@@ -34,6 +34,8 @@ directory where the generated package.xml will be written
 directory where the the code will look for a SFDC package structure (e.g. classes folder, objects folder, etc.)
 * -v,--verbose
 output verbose logging instead of just core output
+* -c,--includechangedata
+include data on who last changed the item directly in the members tag of every item of the package.xml
 
 All parameters can be provided in parameter files specified with the -o parameter. More than one file can be provided (as in the example below, where one file would define what to fetch, skippatterns, etc., and the other where to fetch from). If any parameters are provided both in files and on the command line, the command line ones will be used. 
 
@@ -71,7 +73,21 @@ Multiple patterns can be provided separated by commas.
 ```
 java -jar PackageBuilder.jar -d src -o packagebuilder.properties,org.properties -a 39.0
 ```
-Will run the packagebuilder outputting `package.xml` to the `src` folder, using parameters specified in the `pacakgebuilder.properties` and `org.properties` 
+Will run the packagebuilder outputting `package.xml` to the `src` folder, using parameters specified in the `packagebuilder.properties` and `org.properties` 
+
+```
+java -jar PackageBuilder.jar -d src -o packagebuilder.properties,org.properties -a 44.0 -c
+```
+Will run the packagebuilder outputting `package.xml` to the `src` folder, using parameters specified in the `packagebuilder.properties` and `org.properties`. 
+
+In addition, instead of outputting e.g. 
+`<members>ChangePasswordController</members>`
+
+will output
+
+`<members lastmodifiedby="John Doe" lastmodified="2018-10-14T20:45:13"" lastmodifiedemail="johndoe@example.com">ChangePasswordController</members>`
+
+
 
 ```
 java -jar PackageBuilder.jar -d dst -b src
