@@ -10,6 +10,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Properties;
+import java.util.Set;
 import java.util.Vector;
 import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
@@ -18,6 +19,9 @@ import java.util.regex.PatternSyntaxException;
 
 import com.sforce.soap.metadata.FileProperties;
 import com.sforce.soap.metadata.MetadataConnection;
+import com.sforce.soap.partner.PartnerConnection;
+import com.sforce.soap.partner.QueryResult;
+import com.sforce.soap.partner.sobject.SObject;
 //import com.sforce.soap.partner.PartnerConnection;
 //import com.sforce.soap.partner.QueryResult;
 //import com.sforce.soap.partner.sobject.SObject;
@@ -63,7 +67,7 @@ public class PackageBuilder {
 
 		int getLevel() {return level;}
 	}
-	
+
 	private boolean includeChangeData = false;
 
 	String authEndPoint = "";
@@ -79,6 +83,8 @@ public class PackageBuilder {
 	// added for database handling
 	private String dbFilename;
 	private static final String DBFILENAMESUFFIX = ".packageBuilderDB";
+
+	private static final String DEFAULT_DATE_FORMAT = "yyyy-MM-dd'T'HH:mm:ss";
 
 
 	private static final String urlBase = "/services/Soap/u/";
@@ -102,6 +108,8 @@ public class PackageBuilder {
 
 	private Loglevel loglevel;
 	private OperationMode mode;
+
+	private PartnerConnection srcPartnerConnection;
 	//	private boolean isLoggingPartialLine = false;
 
 
@@ -501,8 +509,8 @@ public class PackageBuilder {
 	 */	
 	private void writePackageXmlFile(HashMap<String, ArrayList<InventoryItem>> theMap, String filename) throws IOException {
 
-		SimpleDateFormat format1 = new SimpleDateFormat("yyyy-MM-dd hh.mm.ss");
-		
+		SimpleDateFormat format1 = new SimpleDateFormat(DEFAULT_DATE_FORMAT);
+
 		StringBuffer packageXML = new StringBuffer();
 		packageXML.append("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n");
 		packageXML.append("<Package xmlns=\"http://soap.sforce.com/2006/04/metadata\">\n");
@@ -518,11 +526,13 @@ public class PackageBuilder {
 
 			for (InventoryItem item : theMap.get(mdType)) {
 				packageXML.append("\t\t<members");
-				
+
 				if (includeChangeData) {
-					packageXML.append(" lastmodifiedby=\"" + item.getLastModifiedByName() + "\" lastmodified=\"" + format1.format(item.getLastModifiedDate().getTime()) + "\"");
+					packageXML.append(" lastmodifiedby=\"" + item.getLastModifiedByName() 
+									+ "\" lastmodified=\"" + format1.format(item.getLastModifiedDate().getTime()) + "\""
+									+ "\" lastmodifiedemail=\"" + item.lastModifiedByEmail + "\"");
 				}
-				
+
 				//"
 				packageXML.append(">" + item.itemName + "</members>\n");	
 			}
@@ -612,6 +622,10 @@ public class PackageBuilder {
 
 		HashMap<String, ArrayList<InventoryItem>>[] files = breakPackageIntoFiles(myFile);
 
+		// if we're writing change telemetry into the package.xml, need to get user emails now
+
+		populateUserEmails(myFile);
+
 		for (int i = 0; i < files.length; i++) {
 			if (i == 0) {
 				writePackageXmlFile(files[i], "package.xml");
@@ -629,6 +643,85 @@ public class PackageBuilder {
 
 		log("Total items in package.xml: " + itemCount, Loglevel.BRIEF);
 		log("Total items skipped: " + skipCount + " (excludes count of items in type where entire type was skipped)", Loglevel.NORMAL);
+	}
+
+	/*
+	 * 
+	 * this method will populate username (Salesforce user name in email format) and user email fields
+	 * on the inventoryItems for use when outputting change telemetry 
+	 * 
+	 */
+
+
+	private void populateUserEmails(HashMap<String, ArrayList<InventoryItem>> myFile) throws ConnectionException {
+
+		Set<String> userIDs = new HashSet<String>();
+
+		for (String mdName : myFile.keySet()) {
+			for (InventoryItem i : myFile.get(mdName)) {
+				userIDs.add(i.getLastModifiedById());
+			}
+		}
+
+		// now call salesforce to get the emails and usernames
+
+		HashMap<String, HashMap<String,String>> usersBySalesforceID = new HashMap<String, HashMap<String,String>>();
+
+		// login
+		this.srcPartnerConnection = LoginUtil.soapLogin(srcUrl, srcUser, srcPwd);
+
+		//build the query
+
+		String queryStart = "SELECT Id, Name, Username, Email FROM User WHERE ID IN(";
+		String queryEnd = ")";
+		String[] myIDs = userIDs.toArray(new String[userIDs.size()]);
+		String queryMid = "'" + String.join("','", myIDs) + "'";
+
+		String query = queryStart + queryMid + queryEnd;
+
+		log("Looking for emails for " + userIDs.size() + " users.", Loglevel.BRIEF);
+		log("Query: " + query, Loglevel.NORMAL);
+
+		// run the query
+
+		QueryResult qResult = this.srcPartnerConnection.query(query);
+
+
+		boolean done = false;
+		if (qResult.getSize() > 0) {
+			System.out.println("Logged-in user can see a total of "
+					+ qResult.getSize() + " contact records.");
+			while (!done) {
+				SObject[] records = qResult.getRecords();
+				for (SObject o : records) {
+					HashMap<String,String> userMap = new HashMap<String,String>();
+					userMap.put("Name", (String)o.getField("Name"));
+					userMap.put("Email", (String)o.getField("Email"));
+					userMap.put("Username", (String)o.getField("Username"));
+					usersBySalesforceID.put((String)o.getField("Id"), userMap);
+				}
+				if (qResult.isDone()) {
+					done = true;
+				} else {
+					qResult = this.srcPartnerConnection.queryMore(qResult.getQueryLocator());
+				}
+			}
+		} else {
+			System.out.println("No records found.");
+		}
+		
+		// now run through the InventoryItems again and update user data
+		
+		for (String mdName : myFile.keySet()) {
+			for (InventoryItem i : myFile.get(mdName)) {
+				i.lastModifiedByEmail = usersBySalesforceID.get(i.getLastModifiedById()).get("Email");
+				i.lastModifiedByUsername = usersBySalesforceID.get(i.getLastModifiedById()).get("Username");
+			}
+		}
+
+
+
+
 	}
 
 	private HashMap<String, ArrayList<InventoryItem>>[] breakPackageIntoFiles(HashMap<String, ArrayList<InventoryItem>> myFile) {
@@ -1015,8 +1108,8 @@ public class PackageBuilder {
 				log("No target directory provided, will default to current directory.", Loglevel.BRIEF);
 				parameters.put("targetdirectory",".");				
 			}
-			
-//			add include change telemetry data
+
+			//			add include change telemetry data
 
 			if (line.hasOption("c")) {
 				parameters.put("includechangedata", "true");

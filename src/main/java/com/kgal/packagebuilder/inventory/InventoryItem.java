@@ -11,6 +11,8 @@ public class InventoryItem {
 	public int itemVersion;
 	public boolean isNew;
 	public boolean isUpdated;
+	public String lastModifiedByEmail;
+	public String lastModifiedByUsername;
 	
 	public InventoryItem(String i, FileProperties f, boolean isF) {
 		this.itemName = i;
