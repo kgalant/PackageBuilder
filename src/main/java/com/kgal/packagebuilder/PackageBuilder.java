@@ -637,7 +637,6 @@ public class PackageBuilder {
 		}
 
 
-
 		ArrayList<String> typesFound = new ArrayList<String>(existingTypes);
 		Collections.sort(typesFound);
 

@@ -40,11 +40,15 @@ import javax.xml.transform.sax.SAXTransformerFactory;
 import javax.xml.transform.sax.TransformerHandler;
 import javax.xml.transform.stream.StreamResult;
 
-import org.w3c.dom.Document;
+import org.w3c.dom.Node;
 import org.xml.sax.SAXException;
 import org.xml.sax.helpers.AttributesImpl;
 
 /**
+ * 
+ * Simplified creation of XML documents using SAX Parser
+ * Does not support mixing text and elements as childs
+ * 
  * @author swissel
  *
  */
@@ -99,19 +103,19 @@ public class SimpleXMLDoc {
         }
         final char[] payload = tagValue.toCharArray();
         // TODO: Do we need CDATA here?
-        // this.hd.startCDATA();
+        this.hd.startCDATA();
         this.hd.characters(payload, 0, payload.length);
-        // this.hd.endCDATA();
+        this.hd.endCDATA();
     }
 
-    public Document closeDocument() throws SAXException {
+    public Node closeDocument() throws SAXException {
         if (!this.documentClosed) {
             this.closeTag(-1); // Make sure all tages are closes
             // Closing of the document,
             this.hd.endDocument();
             this.documentClosed = true;
         }
-        return (Document) this.domresult;
+        return this.domresult.getNode();
     }
 
     public void closeTag(final int howMany) throws SAXException {
@@ -140,21 +144,25 @@ public class SimpleXMLDoc {
             throws SAXException, TransformerConfigurationException {
 
         AttributesImpl atts = null;
+        String nameSpace = "";
         if (!this.documentStarted) {
             this.initializeDoc();
         }
         // This creates attributes that go inside the element, all
-        // encoding is
-        // taken care of
+        // encoding is taken care of
         if ((attributes != null) && !attributes.isEmpty()) {
             atts = new AttributesImpl();
             for (final Entry<String, String> curAtt : attributes.entrySet()) {
-                atts.addAttribute("", "", curAtt.getKey(), "CDATA", curAtt.getValue());
+                if (curAtt.getKey().equals("xmlns")) {
+                    nameSpace = curAtt.getValue();
+                } else {
+                    atts.addAttribute("", "", curAtt.getKey(), "CDATA", curAtt.getValue());
+                }
             }
         }
         // This creates the element with the previously defined
         // attributes
-        this.hd.startElement("", "", tagName, atts);
+        this.hd.startElement(nameSpace, "", tagName, atts);
         this.xmlTagStack.push(tagName); // Memorize that we opened it!
     }
 
@@ -179,7 +187,6 @@ public class SimpleXMLDoc {
         final Source xmlInput = new DOMSource(this.closeDocument());
         final StreamResult xmlOutput = new StreamResult(out);
         final Transformer serializer = this.hd.getTransformer();
-        serializer.setOutputProperty(OutputKeys.INDENT, "yes");
         serializer.transform(xmlInput, xmlOutput);
     }
 
@@ -198,12 +205,12 @@ public class SimpleXMLDoc {
     private void initializeDoc() throws TransformerConfigurationException, SAXException {
         // Factory pattern at work
         final SAXTransformerFactory tf = (SAXTransformerFactory) TransformerFactory.newInstance();
-        tf.setAttribute("indent-number", 2);
         this.hd = tf.newTransformerHandler();
         final Transformer serializer = this.hd.getTransformer();
         serializer.setOutputProperty(OutputKeys.ENCODING, "UTF-8");
         serializer.setOutputProperty(OutputKeys.METHOD, "xml");
         serializer.setOutputProperty(OutputKeys.INDENT, "yes");
+        serializer.setOutputProperty("{http://xml.apache.org/xslt}indent-amount", "2");
         this.hd.setResult(this.domresult);
         this.hd.startDocument();
         this.documentStarted = true;
