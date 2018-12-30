@@ -10,7 +10,6 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Map;
-import java.util.Properties;
 import java.util.Set;
 import java.util.Vector;
 import java.util.concurrent.TimeUnit;
@@ -20,19 +19,10 @@ import java.util.regex.PatternSyntaxException;
 
 import javax.xml.transform.TransformerConfigurationException;
 
-import org.apache.commons.cli.CommandLine;
-import org.apache.commons.cli.CommandLineParser;
-import org.apache.commons.cli.DefaultParser;
-import org.apache.commons.cli.HelpFormatter;
-import org.apache.commons.cli.Option;
-//import org.apache.commons.cli.OptionGroup;
-import org.apache.commons.cli.Options;
-import org.apache.commons.cli.ParseException;
 import org.eclipse.jgit.api.Git;
 import org.eclipse.jgit.api.errors.GitAPIException;
 import org.eclipse.jgit.api.errors.NoFilepatternException;
 import org.eclipse.jgit.lib.PersonIdent;
-import org.eclipse.jgit.lib.Repository;
 import org.xml.sax.SAXException;
 
 import com.kgal.packagebuilder.inventory.InventoryDatabase;
@@ -85,12 +75,12 @@ public class PackageBuilder {
     }
 
     // Static values that don;t change
-    private static final String DBFILENAMESUFFIX = ".packageBuilderDB";
-    private static final String DEFAULT_DATE_FORMAT = "yyyy-MM-dd'T'HH:mm:ss";
-    private static final String URLBASE = "/services/Soap/u/";
-    private static final int     MAXITEMSINPACKAGE = 10000;
-    private static final double  API_VERSION       = 44.0;
-    private static final boolean INCLUDECHANGEDATA = false;
+    private static final String  DBFILENAMESUFFIX       = ".packageBuilderDB";
+    private static final String  DEFAULT_DATE_FORMAT    = "yyyy-MM-dd'T'HH:mm:ss";
+    private static final String  URLBASE                = "/services/Soap/u/";
+    private static final int     MAXITEMSINPACKAGE      = 10000;
+    public static final double   API_VERSION            = 44.0;
+    public static final boolean  INCLUDECHANGEDATA      = false;
     private static final boolean FILTERVERSIONLESSFLOWS = true;
 
     private static final String[] STANDARDVALUETYPESARRAY = new String[] { "AccountContactMultiRoles",
@@ -111,179 +101,60 @@ public class PackageBuilder {
             "SocialPostEngagementLevel", "SocialPostReviewedStatus", "SolutionStatus", "TaskPriority", "TaskStatus",
             "TaskSubject", "TaskType",
             "WorkOrderLineItemStatus", "WorkOrderPriority", "WorkOrderStatus" };
-    
+
+    // Collections
+    private final ArrayList<Pattern>  skipPatterns  = new ArrayList<Pattern>();
+    private final HashSet<String>     existingTypes = new HashSet<String>();
+    private final Map<String, String> parameters    = new HashMap<String, String>();
+
     // Variables changing per parameter or properties
-    private double        myApiVersion;
-    private String        skipItems;
-    private ArrayList<Pattern>                      skipPatterns = new ArrayList<Pattern>();
+    private double                                  myApiVersion;
+    private String                                  skipItems;
     private HashMap<String, DescribeMetadataObject> describeMetadataObjectsMap;
-
-    
-    private HashSet<String> existingTypes = new HashSet<String>();
-    // private static CommandLine line = null;
-    private Options options = new Options();
-
- 
-    public static void main(final String[] args) throws RemoteException, Exception {
-
-        final PackageBuilder pb = new PackageBuilder();
-        pb.setupOptions();
-        pb.parseCommandLine(args);
-        pb.run();
-    }
-
-    private Vector<String> generateFileList(final File node, final String baseDir) {
-
-        final Vector<String> retval = new Vector<String>();
-        // add file only
-        if (node.isFile()) {
-            retval.add(this.generateZipEntry(node.getAbsoluteFile().toString(), baseDir));
-            // retval.add(baseDir + "/" + node.getAbsoluteFile().toString());
-            // retval.add(node.getName());
-        } else if (node.isDirectory()) {
-            final String[] subNote = node.list();
-            for (final String filename : subNote) {
-                retval.addAll(this.generateFileList(new File(node, filename), baseDir));
-            }
-        }
-        return retval;
-    }
-
-    private String generateZipEntry(final String file, final String sourceFolder) {
-        final int indexOfSourceFolder = file.lastIndexOf(sourceFolder);
-        return file.substring(indexOfSourceFolder + sourceFolder.length() + 1, file.length());
-    }
-
-    private void printHelp() {
-        final HelpFormatter formatter = new HelpFormatter();
-        formatter.setOptionComparator(null);
-
-        formatter.printHelp(
-                "java -jar PackageBuilder.jar [-b basedirectory] [-o <parameter file1>,<parameter file2>] [-u <SF username>] [-p <SF password>]",
-                this.options);
-    }
-
-    private void setupOptions() {
-
-        this.options.addOption(Option.builder("o").longOpt("orgfile")
-                .desc("file containing org parameters (see below)")
-                .hasArg()
-                .build());
-        this.options.addOption(Option.builder("u").longOpt("username")
-                .desc("username for the org (someuser@someorg.com)")
-                .hasArg()
-                .build());
-        this.options.addOption(Option.builder("p").longOpt("password")
-                .desc("password for the org (t0pSecr3t)")
-                .hasArg()
-                .build());
-        this.options.addOption(Option.builder("s").longOpt("serverurl")
-                .desc("server URL for the org (https://login.salesforce.com)")
-                .hasArg()
-                .build());
-        this.options.addOption(Option.builder("a").longOpt("apiversion")
-                .desc("api version to use, will default to " + PackageBuilder.API_VERSION)
-                .hasArg()
-                .build());
-        this.options.addOption(Option.builder("mi").longOpt("metadataitems")
-                .desc("metadata items to fetch")
-                .hasArg()
-                .build());
-        this.options.addOption(Option.builder("sp").longOpt("skippatterns")
-                .desc("patterns to skip when fetching")
-                .hasArg()
-                .build());
-        this.options.addOption(Option.builder("d").longOpt("destination")
-                .desc("directory where the generated package.xml will be written")
-                .hasArg()
-                .build());
-
-        // handling for building a package from a directory
-
-        this.options.addOption(Option.builder("b").longOpt("basedirectory")
-                .desc("base directory from which to generate package.xml")
-                .hasArg()
-                .build());
-
-        // adding handling for brief output parameter
-
-        this.options.addOption(Option.builder("v").longOpt("verbose")
-                .desc("output verbose logging instead of just core output")
-                .build());
-
-        // adding handling for change telemetry parameter
-
-        this.options.addOption(Option.builder("c").longOpt("includechangedata")
-                .desc("include lastmodifiedby and date fields in every metadataitem output")
-                .build());
-
-        // handling of direct download and git options
-        this.options.addOption(Option.builder("do").longOpt("download")
-                .desc("directly download assets, removing the need for ANT or MDAPI call")
-                .build());
-
-        this.options.addOption(Option.builder("g").longOpt("gitcommit")
-                .desc("commits the changes to git. Requires -d -c options")
-                .build());
-
-    }
-
-    private boolean includeChangeData = false;
-
-    String authEndPoint = "";
-
-    private long               timeStart;
-    private MetadataConnection srcMetadataConnection;
-
-    private ToolingConnection srcToolingConnection;
-
-    private String srcUrl;
-    private String srcUser;
-
-    private String srcPwd;
-
+    String                                          authEndPoint = "";
+    private long                                    timeStart;
+    private MetadataConnection                      srcMetadataConnection;
+    private ToolingConnection                       srcToolingConnection;
+    private String                                  srcUrl;
+    private String                                  srcUser;
+    private String                                  srcPwd;
     // added for database handling
-    private String dbFilename;
-
-    private String targetDir = "";
-
-    private final HashMap<String, String> parameters = new HashMap<String, String>();
-
-    private Loglevel loglevel;
-
-    private OperationMode mode;
-
+    private String            dbFilename;
+    private String            targetDir = "";
+    private Loglevel          loglevel;
+    private OperationMode     mode;
     private PartnerConnection srcPartnerConnection;
 
-    private boolean downloadData = false;
-    // private boolean isLoggingPartialLine = false;
+    private boolean includeChangeData = false;
+    private boolean downloadData      = false;
+    private boolean gitCommit         = false;
 
-    // this method reads in any old database that may exist that matches the org
-    // then runs the current inventory against that database to generate any
-    // updates/deletes
-    // and then writes the database file back
+    // Constructor that gets all settings as map
+    public PackageBuilder(final Map<String, String> parameters) {
+        this.parameters.putAll(parameters);
 
-    private boolean gitCommit = false;
+    }
 
-    // this method runs through the inventory, identifies any items that have
-    // changed since the database
-    // was written and adds the relevant lines to the database
-
-    // TODO: parameterized handling for deletes
+    private boolean isParamTrue(final String paramName) {
+        return "true".equals(this.parameters.get(paramName));
+    }
 
     public void run() throws RemoteException, Exception {
 
         // set loglevel based on parameters
-
         if ((this.parameters.get("loglevel") != null) && this.parameters.get("loglevel").equals("verbose")) {
             this.loglevel = Loglevel.NORMAL;
         } else {
             this.loglevel = Loglevel.BRIEF;
         }
 
+        // Check what to do based on parameters
+        this.includeChangeData = this.isParamTrue("includechangedata");
+        this.downloadData = this.isParamTrue("download");
+        this.gitCommit = this.isParamTrue("gitcommit");
+
         // initialize inventory - it will be used in both types of operations
         // (connect to org or run local)
-
         // added for inventory database handling
 
         final HashMap<String, ArrayList<InventoryItem>> inventory = new HashMap<String, ArrayList<InventoryItem>>();
@@ -314,43 +185,10 @@ public class PackageBuilder {
         }
     }
 
-    // this method compares the inventory to the database, and adds/updates as
-    // needed
-
-    private boolean addBooleanParameter(final CommandLine line, final String optionName, final String paramName) {
-        boolean result = false;
-        if (line.hasOption(optionName)) {
-            this.parameters.put(paramName, "true");
-            result = true;
-        }
-        return result;
-    }
-
-    // wraps the generations/fetching of an org id for database purposes
-
-    /**
-     * Extract parameters if provided
-     *
-     * @param cmdLineName
-     * @param tagName
-     */
-    private void addCmdlineParameter(final CommandLine line, final String cmdLineName, final String tagName) {
-        if (line.hasOption(cmdLineName) && (line.getOptionValue(cmdLineName) != null)
-                && (line.getOptionValue(cmdLineName).length() > 0)) {
-            this.parameters.put(tagName, line.getOptionValue(cmdLineName));
-        }
-    }
-
-    // returns a database - either one we could read from file, or a newly
-    // initialized one
-
-    private void addParameterFromProperty(final Properties props, final String propName) {
-        // Some properties start with "sf.", but we only use the name behind
-        final String paramName = (propName.startsWith("sf.")) ? propName.substring(3) : propName;
-        if (props.getProperty(propName) != null) {
-            this.parameters.put(paramName, props.getProperty(propName));
-        }
-    }
+    // this method reads in any old database that may exist that matches the org
+    // then runs the current inventory against that database to generate any
+    // updates/deletes
+    // and then writes the database file back
 
     private HashMap<String, ArrayList<InventoryItem>>[] breakPackageIntoFiles(
             final HashMap<String, ArrayList<InventoryItem>> myFile) {
@@ -397,8 +235,11 @@ public class PackageBuilder {
         return retval;
     }
 
-    // added method for generating an inventory based on a local directory
-    // rather than an org
+    // this method runs through the inventory, identifies any items that have
+    // changed since the database
+    // was written and adds the relevant lines to the database
+
+    // TODO: parameterized handling for deletes
 
     private void commitToGit(final Map<String, Set<InventoryItem>> actualChangedFiles)
             throws IOException, NoFilepatternException, GitAPIException {
@@ -426,6 +267,9 @@ public class PackageBuilder {
 
     }
 
+    // this method compares the inventory to the database, and adds/updates as
+    // needed
+
     private void doDatabaseUpdate(final InventoryDatabase database,
             final HashMap<String, ArrayList<InventoryItem>> inventory) {
 
@@ -434,6 +278,9 @@ public class PackageBuilder {
         }
 
     }
+
+    // added method for generating an inventory based on a local directory
+    // rather than an org
 
     private void doDatabaseUpdateForAType(final String metadataType, final InventoryDatabase database,
             final ArrayList<InventoryItem> inventory) {
@@ -454,10 +301,6 @@ public class PackageBuilder {
         out.close();
         return (out.isFileSaved() ? location : null);
     }
-
-    // inventory is a list of lists
-    // keys are the metadata types
-    // e.g. flow, customobject, etc.
 
     private Map<String, Set<InventoryItem>> downloadMetaData(
             final HashMap<String, ArrayList<InventoryItem>> actualInventory) throws IOException {
@@ -490,13 +333,9 @@ public class PackageBuilder {
         this.log("Duration: " + hms, Loglevel.NORMAL);
     }
 
-    /*
-     *
-     * this method will populate username (Salesforce user name in email format)
-     * and user email fields on the inventoryItems for use when outputting
-     * change telemetry
-     *
-     */
+    // inventory is a list of lists
+    // keys are the metadata types
+    // e.g. flow, customobject, etc.
 
     private HashMap<String, InventoryItem> fetchMetadataType(final String metadataType)
             throws RemoteException, Exception {
@@ -628,6 +467,31 @@ public class PackageBuilder {
         this.endTiming();
         return packageInventoryList;
     }
+
+    private Vector<String> generateFileList(final File node, final String baseDir) {
+
+        final Vector<String> retval = new Vector<String>();
+        // add file only
+        if (node.isFile()) {
+            retval.add(this.generateZipEntry(node.getAbsoluteFile().toString(), baseDir));
+            // retval.add(baseDir + "/" + node.getAbsoluteFile().toString());
+            // retval.add(node.getName());
+        } else if (node.isDirectory()) {
+            final String[] subNote = node.list();
+            for (final String filename : subNote) {
+                retval.addAll(this.generateFileList(new File(node, filename), baseDir));
+            }
+        }
+        return retval;
+    }
+
+    /*
+     *
+     * this method will populate username (Salesforce user name in email format)
+     * and user email fields on the inventoryItems for use when outputting
+     * change telemetry
+     *
+     */
 
     private void generateInventoryFromDir(final HashMap<String, ArrayList<InventoryItem>> inventory)
             throws IOException {
@@ -917,6 +781,11 @@ public class PackageBuilder {
 
     }
 
+    private String generateZipEntry(final String file, final String sourceFolder) {
+        final int indexOfSourceFolder = file.lastIndexOf(sourceFolder);
+        return file.substring(indexOfSourceFolder + sourceFolder.length() + 1, file.length());
+    }
+
     private InventoryDatabase getDatabase(final String orgId) {
 
         InventoryDatabase newDatabase = null;
@@ -1026,10 +895,6 @@ public class PackageBuilder {
         return skipCount;
     }
 
-    private boolean isParameterProvided(final String parameterName) {
-        return ((this.parameters.get(parameterName) != null) && (this.parameters.get(parameterName).length() > 0));
-    }
-
     private void log(final String logText, final Loglevel level) {
         if ((this.loglevel == null) || (level.getLevel() <= this.loglevel.getLevel())) {
             System.out.println(logText);
@@ -1039,135 +904,6 @@ public class PackageBuilder {
     private void logPartialLine(final String logText, final Loglevel level) {
         if (level.getLevel() <= this.loglevel.getLevel()) {
             System.out.print(logText);
-        }
-    }
-
-    private void parseCommandLine(final String[] args) {
-
-        this.parameters.put("apiversion", "" + PackageBuilder.API_VERSION);
-        this.parameters.put("metadataitems", null);
-        this.parameters.put("skipItems", null);
-        this.parameters.put("serverurl", null);
-        this.parameters.put("username", null);
-        this.parameters.put("password", null);
-        this.parameters.put("targetdirectory", null);
-        this.parameters.put("includechangedata", String.valueOf(PackageBuilder.INCLUDECHANGEDATA));
-
-        // adding handling for building a package from a directory
-        this.parameters.put("basedirectory", null);
-
-        final HashSet<String> nonMandatoryParams = new HashSet<String>();
-        nonMandatoryParams.add("skipItems");
-
-        final CommandLineParser parser = new DefaultParser();
-        CommandLine line = null;
-        try {
-            // parse the command line arguments
-            line = parser.parse(this.options, args);
-        } catch (final ParseException exp) {
-            // oops, something went wrong
-            System.err.println("Command line parsing failed.  Reason: " + exp.getMessage());
-            System.exit(-1);
-        }
-
-        if (line != null) {
-            // first initialize parameters from any parameter files provided
-
-            if (line.hasOption("o") && (line.getOptionValue("o") != null) && (line.getOptionValue("o").length() > 0)) {
-                final String paramFilesParameter = line.getOptionValue("o");
-                for (final String paramFileName : paramFilesParameter.split(",")) {
-                    final Properties props = Utils.initProps(paramFileName.trim());
-                    System.out.println("Loading parameters from file: " + paramFileName);
-                    this.addParameterFromProperty(props, "sf.apiversion");
-                    this.addParameterFromProperty(props, "metadataitems");
-                    this.addParameterFromProperty(props, "sf.serverurl");
-                    this.addParameterFromProperty(props, "sf.username");
-                    this.addParameterFromProperty(props, "sf.password");
-                    this.addParameterFromProperty(props, "skipItems");
-                    this.addParameterFromProperty(props, "basedirectory");
-                    this.addParameterFromProperty(props, "includechangedata");
-
-                    // adding handling for building a package from a directory
-                    this.addParameterFromProperty(props, "targetdirectory");
-                }
-            }
-
-            // now add all parameters form the commandline
-            this.addCmdlineParameter(line, "a", "apiversion");
-            this.addCmdlineParameter(line, "u", "username");
-            this.addCmdlineParameter(line, "s", "serverurl");
-            this.addCmdlineParameter(line, "p", "password");
-            this.addCmdlineParameter(line, "mi", "metadataitems");
-            this.addCmdlineParameter(line, "sp", "skipItems");
-            this.addCmdlineParameter(line, "d", "targetdirectory");
-
-            // adding handling for building a package from a directory
-            this.addCmdlineParameter(line, "b", "basedirectory");
-
-            // adding handling for brief output parameter
-            if (line.hasOption("v")) {
-                this.parameters.put("loglevel", "verbose");
-                this.loglevel = Loglevel.VERBOSE;
-            }
-
-            // add default to current directory if no target directory given
-
-            if (!this.isParameterProvided("targetdirectory")) {
-                this.log("No target directory provided, will default to current directory.", Loglevel.BRIEF);
-                this.parameters.put("targetdirectory", ".");
-            }
-
-            // add include change telemetry data and download
-            this.includeChangeData = this.addBooleanParameter(line, "c", "includechangedata");
-            this.downloadData = this.addBooleanParameter(line, "do", "download");
-            this.gitCommit = this.addBooleanParameter(line, "g", "gitcommit");
-
-            // GIT needs download and changedata
-            if (this.gitCommit) {
-                this.includeChangeData = true;
-                this.downloadData = true;
-                this.parameters.put("includechangedata", "true");
-                this.parameters.put("download", "true");
-            }
-
-            // check that we have the minimum parameters
-            // either b(asedir) and d(estinationdir)
-            // or s(f_url), p(assword), u(sername), mi(metadataitems)
-            boolean canProceed = false;
-
-            if (this.isParameterProvided("basedirectory") &&
-                    this.isParameterProvided("targetdirectory")) {
-                canProceed = true;
-            } else {
-                if (this.isParameterProvided("serverurl") &&
-                        this.isParameterProvided("password") &&
-                        this.isParameterProvided("password")
-                //
-                // no longer required since we can inventory the org
-                // && isParameterProvided("metadataitems")
-                //
-                ) {
-                    canProceed = true;
-                } else {
-                    System.out.println("Mandatory parameters not provided in files or commandline -"
-                            + " either basedir and destination or serverurl, username, password and metadataitems required as minimum");
-                    System.out.println("Visible parameters:");
-                    for (final String key : this.parameters.keySet()) {
-                        System.out.println(key + ":" + this.parameters.get(key));
-                    }
-                }
-            }
-
-            for (final String key : this.parameters.keySet()) {
-                System.out.println(key + ":" + this.parameters.get(key));
-            }
-
-            if (!canProceed) {
-                this.printHelp();
-                System.exit(1);
-            }
-        } else {
-            this.printHelp();
         }
     }
 
@@ -1317,57 +1053,4 @@ public class PackageBuilder {
         this.log("Writing " + new File(this.targetDir + filename).getCanonicalPath(), Loglevel.BRIEF);
     }
 
-    /*
-     * private static final String STANDARDVALUETYPES = "<types>\n" +
-     * "<members>AccountContactMultiRoles</members>\n" +
-     * "<members>AccountContactRole</members>\n" +
-     * "<members>AccountOwnership</members>\n" +
-     * "<members>AccountRating</members>\n" + "<members>AccountType</members>\n"
-     * + "<members>AddressCountryCode</members>\n" +
-     * "<members>AddressStateCode</members>\n" +
-     * "<members>AssetStatus</members>\n" +
-     * "<members>CampaignMemberStatus</members>\n" +
-     * "<members>CampaignStatus</members>\n" +
-     * "<members>CampaignType</members>\n" +
-     * "<members>CaseContactRole</members>\n" +
-     * "<members>CaseOrigin</members>\n" + "<members>CasePriority</members>\n" +
-     * "<members>CaseReason</members>\n" + "<members>CaseStatus</members>\n" +
-     * "<members>CaseType</members>\n" + "<members>ContactRole</members>\n" +
-     * "<members>ContractContactRole</members>\n" +
-     * "<members>ContractStatus</members>\n" +
-     * "<members>EntitlementType</members>\n" +
-     * "<members>EventSubject</members>\n" + "<members>EventType</members>\n" +
-     * "<members>FiscalYearPeriodName</members>\n" +
-     * "<members>FiscalYearPeriodPrefix</members>\n" +
-     * "<members>FiscalYearQuarterName</members>\n" +
-     * "<members>FiscalYearQuarterPrefix</members>\n" +
-     * "<members>IdeaCategory1</members>\n" +
-     * "<members>IdeaMultiCategory</members>\n" +
-     * "<members>IdeaStatus</members>\n" +
-     * "<members>IdeaThemeStatus</members>\n" + "<members>Industry</members>\n"
-     * + "<members>InvoiceStatus</members>\n" +
-     * "<members>LeadSource</members>\n" + "<members>LeadStatus</members>\n" +
-     * "<members>OpportunityCompetitor</members>\n" +
-     * "<members>OpportunityStage</members>\n" +
-     * "<members>OpportunityType</members>\n" +
-     * "<members>OrderStatus</members>\n" + "<members>OrderType</members>\n" +
-     * "<members>PartnerRole</members>\n" +
-     * "<members>Product2Family</members>\n" +
-     * "<members>QuestionOrigin</members>\n" +
-     * "<members>QuickTextCategory</members>\n" +
-     * "<members>QuickTextChannel</members>\n" +
-     * "<members>QuoteStatus</members>\n" + "<members>SalesTeamRole</members>\n"
-     * + "<members>Salutation</members>\n" +
-     * "<members>ServiceContractApprovalStatus</members>\n" +
-     * "<members>SocialPostClassification</members>\n" +
-     * "<members>SocialPostEngagementLevel</members>\n" +
-     * "<members>SocialPostReviewedStatus</members>\n" +
-     * "<members>SolutionStatus</members>\n" +
-     * "<members>TaskPriority</members>\n" + "<members>TaskStatus</members>\n" +
-     * "<members>TaskSubject</members>\n" + "<members>TaskType</members>\n" +
-     * "<members>WorkOrderLineItemStatus</members>\n" +
-     * "<members>WorkOrderPriority</members>\n" +
-     * "<members>WorkOrderStatus</members>\n" +
-     * "<name>StandardValueSet</name>\n" + "</types>\n";
-     */
 }
