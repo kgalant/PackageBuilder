@@ -2,7 +2,7 @@
  * Copyright (C)  2017, 2018 Salesforce Inc ( http://www.salesforce.com/      *
  *                            All rights reserved.                            *
  *                                                                            *
- *  @author     Kim Galand  <kgaland@salesforce.com>                          *
+ *  @author     Kim Galant  <kgalant@salesforce.com>                          *
  * @version     1.0                                                           *
  * ========================================================================== *
  *                                                                            *
