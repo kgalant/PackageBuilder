@@ -13,6 +13,7 @@ public class InventoryItem {
 	public boolean isUpdated;
 	public String lastModifiedByEmail;
 	public String lastModifiedByUsername;
+	public String localFileName;
 	
 	public InventoryItem(String i, FileProperties f, boolean isF) {
 		this.itemName = i;

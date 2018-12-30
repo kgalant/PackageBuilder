@@ -40,10 +40,16 @@ import org.apache.commons.cli.Option;
 //import org.apache.commons.cli.OptionGroup;
 import org.apache.commons.cli.Options;
 import org.apache.commons.cli.ParseException;
+import org.eclipse.jgit.api.Git;
+import org.eclipse.jgit.api.errors.GitAPIException;
+import org.eclipse.jgit.api.errors.NoFilepatternException;
+import org.eclipse.jgit.lib.PersonIdent;
+import org.eclipse.jgit.lib.Repository;
 import org.xml.sax.SAXException;
 
 import com.kgal.packagebuilder.inventory.InventoryDatabase;
 import com.kgal.packagebuilder.inventory.InventoryItem;
+import com.kgal.packagebuilder.output.MetaDataOutput;
 import com.kgal.packagebuilder.output.SimpleXMLDoc;
 import com.salesforce.migrationtoolutils.Utils;
 
@@ -106,16 +112,20 @@ public class PackageBuilder {
 	private static final boolean FILTERVERSIONLESSFLOWS = true;
 
 	private static HashSet<String> existingTypes = new HashSet<String>();
-	private static HashMap<String,String> parameters = new HashMap<String,String>();
+	private HashMap<String,String> parameters = new HashMap<String,String>();
 
-	private static CommandLine line = null;
+	//private static CommandLine line = null;
 	private static Options options = new Options();
 
 	private Loglevel loglevel;
 	private OperationMode mode;
 
 	private PartnerConnection srcPartnerConnection;
+
+    private boolean downloadData = false;
 	//	private boolean isLoggingPartialLine = false;
+
+    private boolean gitCommit = false;
 
 
 
@@ -180,10 +190,70 @@ public class PackageBuilder {
 			generateInventoryFromOrg(inventory);
 			mode = OperationMode.ORG;
 		}
-		generatePackageXML(inventory);
+		HashMap<String, ArrayList<InventoryItem>> actualInventory = generatePackageXML(inventory);
+		
+		if (this.downloadData) {
+		    Map<String, Set<InventoryItem>> actualChangedFiles = this.downloadMetaData(actualInventory);
+		    if (this.gitCommit) {
+		        this.commitToGit(actualChangedFiles);
+		    }
+		}
 	}
 
-	// this method reads in any old database that may exist that matches the org 
+	private void commitToGit(final Map<String, Set<InventoryItem>> actualChangedFiles) throws IOException, NoFilepatternException, GitAPIException {
+	    //TODO: Read the correct repository path
+        Git git = Git.open(new File("."));
+        Repository repository = git.getRepository();
+        
+        for(String key : actualChangedFiles.keySet()) {
+            PersonIdent author = null;
+            String commitMessage = null;
+            Set<InventoryItem> curSet = actualChangedFiles.get(key);
+            for (InventoryItem curItem : curSet) {
+                //TODO: check if local file name works
+                git.add().addFilepattern(curItem.localFileName).call();
+                if (author == null) {
+                    author = new PersonIdent(curItem.lastModifiedByUsername, curItem.lastModifiedByEmail);
+                }
+                if (commitMessage == null) {
+                    commitMessage = "Change by "+curItem.lastModifiedByEmail+" [AutoRetrieve]";
+                }
+            }
+            
+            git.commit().setMessage(commitMessage).setAuthor(author).call();
+            
+        }
+        
+    }
+
+    private Map<String, Set<InventoryItem>> downloadMetaData(final HashMap<String, ArrayList<InventoryItem>> actualInventory) {
+        Map<String, Set<InventoryItem>> result = new HashMap<>();
+       
+        for (String itemType : actualInventory.keySet()) {
+            ArrayList<InventoryItem> itemList = actualInventory.get(itemType);
+            for (InventoryItem oneMetaData : itemList) {
+                String downLoadedFileName = this.downloadIfChanged(itemType, oneMetaData);
+                if (downLoadedFileName != null) {
+                    String curEmail = oneMetaData.lastModifiedByEmail;
+                    Set<InventoryItem> curItems = (result.containsKey(curEmail)) ? result.get(curEmail) : new HashSet<>();
+                    curItems.add(oneMetaData);
+                    result.put(curEmail, curItems);
+                }
+            }
+        }
+        
+        return result;
+    }
+
+    private String downloadIfChanged(String itemType, InventoryItem oneMetaData) {
+        String location = "Where does that file go";
+        // Smart Output Stream. Doesn't save if the files are the same
+        MetaDataOutput out = new MetaDataOutput(location);
+        //TODO: actually download stuff
+        return (out.isFileSaved() ? location : null);
+    }
+
+    // this method reads in any old database that may exist that matches the org 
 	// then runs the current inventory against that database to generate any updates/deletes
 	// and then writes the database file back
 
@@ -549,7 +619,7 @@ public class PackageBuilder {
 		log("Writing " + new File (targetDir + filename).getCanonicalPath(), Loglevel.BRIEF);
 	}
 	
-	private void generatePackageXML(HashMap<String, ArrayList<InventoryItem>> inventory) throws ConnectionException, IOException, TransformerConfigurationException, SAXException {
+	private HashMap<String, ArrayList<InventoryItem>> generatePackageXML(HashMap<String, ArrayList<InventoryItem>> inventory) throws ConnectionException, IOException, TransformerConfigurationException, SAXException {
 
 		int itemCount = 0;
 		int skipCount = 0;
@@ -644,6 +714,9 @@ public class PackageBuilder {
 
 		log("Total items in package.xml: " + itemCount, Loglevel.BRIEF);
 		log("Total items skipped: " + skipCount + " (excludes count of items in type where entire type was skipped)", Loglevel.NORMAL);
+	
+		return myFile;
+	
 	}
 
 	/*
@@ -1007,7 +1080,7 @@ public class PackageBuilder {
 				.build() );
 		
 		// handling of direct download and git options
-		options.addOption( Option.builder("d").longOpt( "download" )
+		options.addOption( Option.builder("do").longOpt( "download" )
                 .desc( "directly download assets, removing the need for ANT or MDAPI call" )
                 .build() );
 		
@@ -1043,6 +1116,7 @@ public class PackageBuilder {
 		nonMandatoryParams.add("skipItems");
 
 		CommandLineParser parser = new DefaultParser();
+		CommandLine line = null;
 		try {
 			// parse the command line arguments
 			line = parser.parse( options, args );
@@ -1077,36 +1151,18 @@ public class PackageBuilder {
 			}
 
 			// now add all parameters form the commandline
-			if (line.hasOption("a") && line.getOptionValue("a") != null && line.getOptionValue("a").length() > 0) {
-				parameters.put("apiversion", line.getOptionValue("a"));
-			}
-			if (line.hasOption("u") && line.getOptionValue("u") != null && line.getOptionValue("u").length() > 0) {
-				parameters.put("username", line.getOptionValue("u"));
-			}
-			if (line.hasOption("s") && line.getOptionValue("s") != null && line.getOptionValue("s").length() > 0) {
-				parameters.put("serverurl", line.getOptionValue("s"));
-			}
-			if (line.hasOption("p") && line.getOptionValue("p") != null && line.getOptionValue("p").length() > 0) {
-				parameters.put("password", line.getOptionValue("p"));
-			}
-			if (line.hasOption("mi") && line.getOptionValue("mi") != null && line.getOptionValue("mi").length() > 0) {
-				parameters.put("metadataitems", line.getOptionValue("mi"));
-			}
-			if (line.hasOption("sp") && line.getOptionValue("sp") != null && line.getOptionValue("sp").length() > 0) {
-				parameters.put("skipItems", line.getOptionValue("sp"));
-			}
-			if (line.hasOption("d") && line.getOptionValue("d") != null && line.getOptionValue("d").length() > 0) {
-				parameters.put("targetdirectory", line.getOptionValue("d"));
-			}
+			this.addCmdlineParameter(line, "a","apiversion");
+			this.addCmdlineParameter(line, "u","username");
+			this.addCmdlineParameter(line, "s","serverurl");
+			this.addCmdlineParameter(line, "p","password");
+			this.addCmdlineParameter(line, "mi","metadataitems");
+			this.addCmdlineParameter(line, "sp","skipItems");
+			this.addCmdlineParameter(line, "d","targetdirectory");
 
 			// adding handling for building a package from a directory
-
-			if (line.hasOption("b") && line.getOptionValue("b") != null && line.getOptionValue("b").length() > 0) {
-				parameters.put("basedirectory", line.getOptionValue("b"));
-			}
+			this.addCmdlineParameter(line, "b","basedirectory");
 
 			// adding handling for brief output parameter
-
 			if (line.hasOption("v")) {
 				parameters.put("loglevel", "verbose");
 			}
@@ -1122,8 +1178,18 @@ public class PackageBuilder {
 
 			if (line.hasOption("c")) {
 				parameters.put("includechangedata", "true");
-				includeChangeData = true;
+				this.includeChangeData = true;
 			}
+			
+			if (line.hasOption("do")) {
+                parameters.put("download", "true");
+                this.downloadData = true;
+            }
+			
+			if (line.hasOption("g")) {
+                parameters.put("gitcommit", "true");
+                this.gitCommit = true;
+            }
 
 
 			// check that we have the minimum parameters
@@ -1165,11 +1231,19 @@ public class PackageBuilder {
 		} else printHelp();
 	}
 
-	private static boolean isParameterProvided(String parameterName) {
-		if (parameters.get(parameterName) != null && parameters.get(parameterName).length() > 0) {
-			return true;
-		}
-		return false;
+	/**
+	 * Extract parameters if provided
+	 * @param cmdLineName
+	 * @param tagName
+	 */
+	private void addCmdlineParameter(final CommandLine line, final String cmdLineName, final String tagName) {
+	    if (line.hasOption(cmdLineName) && line.getOptionValue(cmdLineName) != null && line.getOptionValue(cmdLineName).length() > 0) {
+            this.parameters.put(tagName, line.getOptionValue(cmdLineName));
+        }
+	}
+	
+	private boolean isParameterProvided(final String parameterName) {
+		return (this.parameters.get(parameterName) != null && this.parameters.get(parameterName).length() > 0) ;
 	}
 
 	private void log (String logText, Loglevel level) {
