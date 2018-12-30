@@ -9,6 +9,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.Map;
 import java.util.Properties;
 import java.util.Set;
 import java.util.Vector;
@@ -16,6 +17,8 @@ import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.regex.PatternSyntaxException;
+
+import javax.xml.transform.TransformerConfigurationException;
 
 import com.sforce.soap.metadata.FileProperties;
 import com.sforce.soap.metadata.MetadataConnection;
@@ -37,9 +40,11 @@ import org.apache.commons.cli.Option;
 //import org.apache.commons.cli.OptionGroup;
 import org.apache.commons.cli.Options;
 import org.apache.commons.cli.ParseException;
+import org.xml.sax.SAXException;
 
 import com.kgal.packagebuilder.inventory.InventoryDatabase;
 import com.kgal.packagebuilder.inventory.InventoryItem;
+import com.kgal.packagebuilder.output.SimpleXMLDoc;
 import com.salesforce.migrationtoolutils.Utils;
 
 public class PackageBuilder {
@@ -507,13 +512,12 @@ public class PackageBuilder {
 	</types>
 
 	 */	
-	private void writePackageXmlFile(HashMap<String, ArrayList<InventoryItem>> theMap, String filename) throws IOException {
+	private void writePackageXmlFile(final HashMap<String, ArrayList<InventoryItem>> theMap, final String filename) throws IOException, TransformerConfigurationException, SAXException {
 
 		SimpleDateFormat format1 = new SimpleDateFormat(DEFAULT_DATE_FORMAT);
 
-		StringBuffer packageXML = new StringBuffer();
-		packageXML.append("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n");
-		packageXML.append("<Package xmlns=\"http://soap.sforce.com/2006/04/metadata\">\n");
+		SimpleXMLDoc packageXML = new SimpleXMLDoc();
+		packageXML.openTag("Package", "xmlns", "http://soap.sforce.com/2006/04/metadata");
 
 
 		ArrayList<String> mdTypes = new ArrayList<String>(theMap.keySet());
@@ -521,33 +525,31 @@ public class PackageBuilder {
 
 
 		for (String mdType : mdTypes) {
-			packageXML.append("\t<types>\n");
-			packageXML.append("\t\t<name>" + mdType + "</name>\n");
+			packageXML.openTag("<types>");
+			packageXML.addTag("name",mdType);
 
 			for (InventoryItem item : theMap.get(mdType)) {
-				packageXML.append("\t\t<members");
-
-				if (includeChangeData) {
-					packageXML.append(" lastmodifiedby=\"" + item.getLastModifiedByName() 
-									+ "\" lastmodified=\"" + format1.format(item.getLastModifiedDate().getTime()) + "\""
-									+ "\" lastmodifiedemail=\"" + item.lastModifiedByEmail + "\"");
+			    
+			    Map<String, String> attributes =  null;
+			    if (includeChangeData) {
+			        attributes = new HashMap<>();
+			        attributes.put("lastmodifiedby",item.getLastModifiedByName()); 
+			        attributes.put("lastmodified", format1.format(item.getLastModifiedDate().getTime()));
+			        attributes.put("lastmodifiedemail", item.lastModifiedByEmail);
 				}
-
-				//"
-				packageXML.append(">" + item.itemName + "</members>\n");	
+			    
+				packageXML.addTag("members",item.itemName, attributes);	
 			}
-			packageXML.append("\t</types>\n");
+			packageXML.closeTag(1);
 		}
-		packageXML.append("\t<version>" + myApiVersion + "</version>\n");
-		packageXML.append("</Package>\n");
+		packageXML.addTag("version", String.valueOf(myApiVersion));
+		packageXML.closeDocument();
 
 		Utils.writeFile(targetDir + filename, packageXML.toString());
 		log("Writing " + new File (targetDir + filename).getCanonicalPath(), Loglevel.BRIEF);
 	}
-
-
-
-	private void generatePackageXML(HashMap<String, ArrayList<InventoryItem>> inventory) throws ConnectionException, IOException {
+	
+	private void generatePackageXML(HashMap<String, ArrayList<InventoryItem>> inventory) throws ConnectionException, IOException, TransformerConfigurationException, SAXException {
 
 		int itemCount = 0;
 		int skipCount = 0;
@@ -1004,7 +1006,15 @@ public class PackageBuilder {
 		options.addOption( Option.builder("c").longOpt( "includechangedata" )
 				.desc( "include lastmodifiedby and date fields in every metadataitem output" )
 				.build() );
-
+		
+		// handling of direct download and git options
+		options.addOption( Option.builder("d").longOpt( "download" )
+                .desc( "directly download assets, removing the need for ANT or MDAPI call" )
+                .build() );
+		
+		options.addOption( Option.builder("g").longOpt( "gitcommit" )
+                .desc( "commits the changes to git. Requires -d -c options" )
+                .build() );
 
 	}
 
