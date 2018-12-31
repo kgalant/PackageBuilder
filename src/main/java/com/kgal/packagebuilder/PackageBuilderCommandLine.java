@@ -49,10 +49,9 @@ public class PackageBuilderCommandLine {
      */
     public static void main(final String[] args) throws RemoteException, Exception {
         final PackageBuilderCommandLine pbc = new PackageBuilderCommandLine();
-        pbc.setupOptions();
-        ;
+
         if (pbc.parseCommandLine(args)) {
-            final PackageBuilder pb = new PackageBuilder(pbc.parameters);
+            final PackageBuilder pb = new PackageBuilder(pbc.getParameters());
             pb.run();
         }
 
@@ -62,43 +61,18 @@ public class PackageBuilderCommandLine {
 
     private final Options options = new Options();
 
-    private boolean addBooleanParameter(final CommandLine line, final String optionName, final String paramName) {
-        boolean result = false;
-        if (line.hasOption(optionName)) {
-            this.parameters.put(paramName, "true");
-            result = true;
-        }
-        return result;
+    public PackageBuilderCommandLine() {
+        this.setupOptions();
     }
 
     /**
-     * Extract parameters if provided
-     *
-     * @param cmdLineName
-     * @param tagName
+     * @return the parameters collected from command line or parameter file
      */
-    private void addCmdlineParameter(final CommandLine line, final String cmdLineName, final String tagName) {
-        if (line.hasOption(cmdLineName) && (line.getOptionValue(cmdLineName) != null)
-                && (line.getOptionValue(cmdLineName).length() > 0)) {
-            this.parameters.put(tagName, line.getOptionValue(cmdLineName));
-        }
+    public Map<String, String> getParameters() {
+        return this.parameters;
     }
 
-    private void addParameterFromProperty(final Properties props, final String propName) {
-        // Some properties start with "sf.", but we only use the name behind
-        final String paramName = (propName.startsWith("sf.")) ? propName.substring(3) : propName;
-        if (props.getProperty(propName) != null) {
-            this.parameters.put(paramName, props.getProperty(propName));
-        }
-    }
-
-    private boolean isParameterProvided(final String parameterName) {
-        return ((this.parameters.get(parameterName) != null) && (this.parameters.get(parameterName).length() > 0));
-    }
-
-    // wraps the generations/fetching of an org id for database purposes
-
-    private boolean parseCommandLine(final String[] args) {
+    public boolean parseCommandLine(final String[] args) {
 
         boolean canProceed = false;
 
@@ -114,7 +88,7 @@ public class PackageBuilderCommandLine {
         // adding handling for building a package from a directory
         this.parameters.put("basedirectory", null);
 
-        final HashSet<String> nonMandatoryParams = new HashSet<String>();
+        final HashSet<String> nonMandatoryParams = new HashSet<>();
         nonMandatoryParams.add("skipItems");
 
         final CommandLineParser parser = new DefaultParser();
@@ -222,6 +196,42 @@ public class PackageBuilderCommandLine {
         }
 
         return canProceed;
+    }
+
+    private boolean addBooleanParameter(final CommandLine line, final String optionName, final String paramName) {
+        boolean result = false;
+        if (line.hasOption(optionName)) {
+            this.parameters.put(paramName, "true");
+            result = true;
+        }
+        return result;
+    }
+
+    /**
+     * Extract parameters if provided
+     *
+     * @param cmdLineName
+     * @param tagName
+     */
+    private void addCmdlineParameter(final CommandLine line, final String cmdLineName, final String tagName) {
+        if (line.hasOption(cmdLineName) && (line.getOptionValue(cmdLineName) != null)
+                && (line.getOptionValue(cmdLineName).length() > 0)) {
+            this.parameters.put(tagName, line.getOptionValue(cmdLineName));
+        }
+    }
+
+    private void addParameterFromProperty(final Properties props, final String propName) {
+        // Some properties start with "sf.", but we only use the name behind
+        final String paramName = (propName.startsWith("sf.")) ? propName.substring(3) : propName;
+        if (props.getProperty(propName) != null) {
+            this.parameters.put(paramName, props.getProperty(propName));
+        }
+    }
+
+    // wraps the generations/fetching of an org id for database purposes
+
+    private boolean isParameterProvided(final String parameterName) {
+        return ((this.parameters.get(parameterName) != null) && (this.parameters.get(parameterName).length() > 0));
     }
 
     // returns a database - either one we could read from file, or a newly
