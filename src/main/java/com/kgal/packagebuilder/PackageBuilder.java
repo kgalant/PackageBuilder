@@ -5,13 +5,13 @@ import java.io.IOException;
 import java.rmi.RemoteException;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.Set;
-import java.util.Vector;
 import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -103,9 +103,9 @@ public class PackageBuilder {
             "WorkOrderLineItemStatus", "WorkOrderPriority", "WorkOrderStatus" };
 
     // Collections
-    private final ArrayList<Pattern>  skipPatterns  = new ArrayList<Pattern>();
-    private final HashSet<String>     existingTypes = new HashSet<String>();
-    private final Map<String, String> parameters    = new HashMap<String, String>();
+    private final ArrayList<Pattern>  skipPatterns  = new ArrayList<>();
+    private final HashSet<String>     existingTypes = new HashSet<>();
+    private final Map<String, String> parameters    = new HashMap<>();
 
     // Variables changing per parameter or properties
     private double                                  myApiVersion;
@@ -121,6 +121,7 @@ public class PackageBuilder {
     // added for database handling
     private String            dbFilename;
     private String            targetDir = "";
+    private String            metaSourceDownloadDir = "";
     private Loglevel          loglevel;
     private OperationMode     mode;
     private PartnerConnection srcPartnerConnection;
@@ -135,19 +136,11 @@ public class PackageBuilder {
 
     }
 
-    private boolean isParamTrue(final String paramName) {
-        return "true".equals(this.parameters.get(paramName));
-    }
-
     public void run() throws RemoteException, Exception {
 
         // set loglevel based on parameters
-        if ((this.parameters.get("loglevel") != null) && this.parameters.get("loglevel").equals("verbose")) {
-            this.loglevel = Loglevel.NORMAL;
-        } else {
-            this.loglevel = Loglevel.BRIEF;
-        }
-
+        this.loglevel = ("verbose".equals(this.parameters.get("loglevel"))) ? Loglevel.NORMAL : Loglevel.BRIEF;
+ 
         // Check what to do based on parameters
         this.includeChangeData = this.isParamTrue("includechangedata");
         this.downloadData = this.isParamTrue("download");
@@ -157,12 +150,13 @@ public class PackageBuilder {
         // (connect to org or run local)
         // added for inventory database handling
 
-        final HashMap<String, ArrayList<InventoryItem>> inventory = new HashMap<String, ArrayList<InventoryItem>>();
+        final HashMap<String, ArrayList<InventoryItem>> inventory = new HashMap<>();
         // HashMap<String,ArrayList<String>> inventory = new
         // HashMap<String,ArrayList<String>>();
 
         this.myApiVersion = Double.parseDouble(this.parameters.get("apiversion"));
         this.targetDir = Utils.checkPathSlash(Utils.checkPathSlash(this.parameters.get("targetdirectory")));
+        this.metaSourceDownloadDir = Utils.checkPathSlash(Utils.checkPathSlash(this.parameters.get("sourcedirectory")));
 
         // handling for building a package from a directory
         // if we have a base directory set, ignore everything else and generate
@@ -185,18 +179,13 @@ public class PackageBuilder {
         }
     }
 
-    // this method reads in any old database that may exist that matches the org
-    // then runs the current inventory against that database to generate any
-    // updates/deletes
-    // and then writes the database file back
-
     private HashMap<String, ArrayList<InventoryItem>>[] breakPackageIntoFiles(
             final HashMap<String, ArrayList<InventoryItem>> myFile) {
 
-        final ArrayList<HashMap<String, ArrayList<InventoryItem>>> files = new ArrayList<HashMap<String, ArrayList<InventoryItem>>>();
+        final ArrayList<HashMap<String, ArrayList<InventoryItem>>> files = new ArrayList<>();
         int fileIndex = 0;
         int fileCount = 0;
-        HashMap<String, ArrayList<InventoryItem>> currentFile = new HashMap<String, ArrayList<InventoryItem>>();
+        HashMap<String, ArrayList<InventoryItem>> currentFile = new HashMap<>();
         for (final String mdType : myFile.keySet()) {
             final ArrayList<InventoryItem> mdTypeList = myFile.get(mdType);
             final int mdTypeSize = mdTypeList.size();
@@ -206,7 +195,7 @@ public class PackageBuilder {
                 // no, we don't, finish file off, add to list, create new and
                 // add to that
                 files.add(currentFile);
-                currentFile = new HashMap<String, ArrayList<InventoryItem>>();
+                currentFile = new HashMap<>();
 
                 this.log("Finished composing file " + fileIndex + ", total count: " + fileCount + "items.",
                         Loglevel.NORMAL);
@@ -235,11 +224,10 @@ public class PackageBuilder {
         return retval;
     }
 
-    // this method runs through the inventory, identifies any items that have
-    // changed since the database
-    // was written and adds the relevant lines to the database
-
-    // TODO: parameterized handling for deletes
+    // this method reads in any old database that may exist that matches the org
+    // then runs the current inventory against that database to generate any
+    // updates/deletes
+    // and then writes the database file back
 
     private void commitToGit(final Map<String, Set<InventoryItem>> actualChangedFiles)
             throws IOException, NoFilepatternException, GitAPIException {
@@ -267,8 +255,11 @@ public class PackageBuilder {
 
     }
 
-    // this method compares the inventory to the database, and adds/updates as
-    // needed
+    // this method runs through the inventory, identifies any items that have
+    // changed since the database
+    // was written and adds the relevant lines to the database
+
+    // TODO: parameterized handling for deletes
 
     private void doDatabaseUpdate(final InventoryDatabase database,
             final HashMap<String, ArrayList<InventoryItem>> inventory) {
@@ -279,8 +270,8 @@ public class PackageBuilder {
 
     }
 
-    // added method for generating an inventory based on a local directory
-    // rather than an org
+    // this method compares the inventory to the database, and adds/updates as
+    // needed
 
     private void doDatabaseUpdateForAType(final String metadataType, final InventoryDatabase database,
             final ArrayList<InventoryItem> inventory) {
@@ -291,8 +282,11 @@ public class PackageBuilder {
 
     }
 
+    // added method for generating an inventory based on a local directory
+    // rather than an org
+
     private String downloadIfChanged(final String itemType, final InventoryItem oneMetaData) throws IOException {
-        final String location = "Where does that file go";
+        final String location = this.metaSourceDownloadDir + "Where does that file go";
         // Smart Output Stream. Doesn't save if the files are the same
         final MetaDataOutput out = new MetaDataOutput(location);
         // TODO: actually download stuff
@@ -333,18 +327,14 @@ public class PackageBuilder {
         this.log("Duration: " + hms, Loglevel.NORMAL);
     }
 
-    // inventory is a list of lists
-    // keys are the metadata types
-    // e.g. flow, customobject, etc.
-
     private HashMap<String, InventoryItem> fetchMetadataType(final String metadataType)
             throws RemoteException, Exception {
         this.startTiming();
         // logPartialLine(", level);
-        final HashMap<String, InventoryItem> packageInventoryList = new HashMap<String, InventoryItem>();
+        final HashMap<String, InventoryItem> packageInventoryList = new HashMap<>();
         try {
 
-            final ArrayList<FileProperties> foldersToProcess = new ArrayList<FileProperties>();
+            final ArrayList<FileProperties> foldersToProcess = new ArrayList<>();
             boolean isFolder = false;
             // check if what we have here is in folders
 
@@ -376,7 +366,7 @@ public class PackageBuilder {
 
             final Iterator<FileProperties> folder = foldersToProcess.iterator();
 
-            final HashMap<String, ArrayList<FileProperties>> metadataMap = new HashMap<String, ArrayList<FileProperties>>();
+            final HashMap<String, ArrayList<FileProperties>> metadataMap = new HashMap<>();
 
             int itemCount = 0;
             // int thisItemCount = 0;
@@ -407,7 +397,7 @@ public class PackageBuilder {
                             + itemCount, Loglevel.NORMAL);
                     // fetch folders themselves
                     // packageMap.add(folderName);
-                    final ArrayList<FileProperties> filenameList = new ArrayList<FileProperties>();
+                    final ArrayList<FileProperties> filenameList = new ArrayList<>();
                     filenameList.add(folderProperties);
                     metadataMap.put(folderProperties.getFileName(), filenameList);
                     itemCount++;
@@ -468,9 +458,13 @@ public class PackageBuilder {
         return packageInventoryList;
     }
 
-    private Vector<String> generateFileList(final File node, final String baseDir) {
+    // inventory is a list of lists
+    // keys are the metadata types
+    // e.g. flow, customobject, etc.
 
-        final Vector<String> retval = new Vector<String>();
+    private Collection<String> generateFileList(final File node, final String baseDir) {
+
+        final Collection<String> retval = new ArrayList<>();
         // add file only
         if (node.isFile()) {
             retval.add(this.generateZipEntry(node.getAbsoluteFile().toString(), baseDir));
@@ -485,21 +479,13 @@ public class PackageBuilder {
         return retval;
     }
 
-    /*
-     *
-     * this method will populate username (Salesforce user name in email format)
-     * and user email fields on the inventoryItems for use when outputting
-     * change telemetry
-     *
-     */
-
     private void generateInventoryFromDir(final HashMap<String, ArrayList<InventoryItem>> inventory)
             throws IOException {
         final String basedir = this.parameters.get("basedirectory");
 
         // check if the directory is valid
 
-        final HashMap<String, HashSet<InventoryItem>> myInventory = new HashMap<String, HashSet<InventoryItem>>();
+        final HashMap<String, HashSet<InventoryItem>> myInventory = new HashMap<>();
 
         if (!Utils.checkIsDirectory(basedir)) {
             // log error and exit
@@ -512,7 +498,7 @@ public class PackageBuilder {
 
         // directory valid - enumerate and generate inventory
 
-        final Vector<String> filelist = this.generateFileList(new File(basedir), basedir);
+        final Collection<String> filelist = this.generateFileList(new File(basedir), basedir);
 
         // so now we have a list of folders/files
         // need to convert to inventory for package.xml generator
@@ -571,7 +557,7 @@ public class PackageBuilder {
 
                 HashSet<InventoryItem> typeInventory = myInventory.get(mdType);
                 if (typeInventory == null) {
-                    typeInventory = new HashSet<InventoryItem>();
+                    typeInventory = new HashSet<>();
                     myInventory.put(mdType, typeInventory);
                     System.out.println("Created inventory record for type: " + mdType);
                 }
@@ -608,7 +594,7 @@ public class PackageBuilder {
 
         }
         for (final String myMdType : myInventory.keySet()) {
-            final ArrayList<InventoryItem> invType = new ArrayList<InventoryItem>();
+            final ArrayList<InventoryItem> invType = new ArrayList<>();
             invType.addAll(myInventory.get(myMdType));
             inventory.put(myMdType, invType);
         }
@@ -616,6 +602,14 @@ public class PackageBuilder {
         //
 
     }
+
+    /*
+     *
+     * this method will populate username (Salesforce user name in email format)
+     * and user email fields on the inventoryItems for use when outputting
+     * change telemetry
+     *
+     */
 
     private void generateInventoryFromOrg(final HashMap<String, ArrayList<InventoryItem>> inventory)
             throws RemoteException, Exception {
@@ -631,7 +625,7 @@ public class PackageBuilder {
 
         // Figure out what we are going to be fetching
 
-        final ArrayList<String> workToDo = new ArrayList<String>(this.getTypesToFetch());
+        final ArrayList<String> workToDo = new ArrayList<>(this.getTypesToFetch());
         Collections.sort(workToDo);
 
         this.log("Will fetch: " + String.join(", ", workToDo) + " from: " + this.srcUrl, Loglevel.BRIEF);
@@ -655,7 +649,7 @@ public class PackageBuilder {
                         Loglevel.BRIEF);
             }
 
-            final ArrayList<InventoryItem> mdTypeItemList = new ArrayList<InventoryItem>(
+            final ArrayList<InventoryItem> mdTypeItemList = new ArrayList<>(
                     this.fetchMetadataType(mdType).values());
             Collections.sort(mdTypeItemList, (o1, o2) -> o1.itemName.compareTo(o2.itemName));
             inventory.put(mdType, mdTypeItemList);
@@ -678,9 +672,9 @@ public class PackageBuilder {
         int itemCount = 0;
         int skipCount = 0;
 
-        final HashMap<String, ArrayList<InventoryItem>> myFile = new HashMap<String, ArrayList<InventoryItem>>();
+        final HashMap<String, ArrayList<InventoryItem>> myFile = new HashMap<>();
 
-        final ArrayList<String> types = new ArrayList<String>();
+        final ArrayList<String> types = new ArrayList<>();
         types.addAll(inventory.keySet());
         Collections.sort(types);
 
@@ -767,7 +761,7 @@ public class PackageBuilder {
             }
         }
 
-        final ArrayList<String> typesFound = new ArrayList<String>(this.existingTypes);
+        final ArrayList<String> typesFound = new ArrayList<>(this.existingTypes);
         Collections.sort(typesFound);
 
         this.log("Types found in org: " + typesFound.toString(), Loglevel.BRIEF);
@@ -810,13 +804,13 @@ public class PackageBuilder {
 
     private HashSet<String> getTypesToFetch() throws ConnectionException {
 
-        final HashSet<String> typesToFetch = new HashSet<String>();
+        final HashSet<String> typesToFetch = new HashSet<>();
         final String mdTypesToExamine = this.parameters.get("metadataitems");
 
         // get a describe
 
         final DescribeMetadataResult dmr = this.srcMetadataConnection.describeMetadata(this.myApiVersion);
-        this.describeMetadataObjectsMap = new HashMap<String, DescribeMetadataObject>();
+        this.describeMetadataObjectsMap = new HashMap<>();
 
         for (final DescribeMetadataObject obj : dmr.getMetadataObjects()) {
             this.describeMetadataObjectsMap.put(obj.getXmlName(), obj);
@@ -895,6 +889,10 @@ public class PackageBuilder {
         return skipCount;
     }
 
+    private boolean isParamTrue(final String paramName) {
+        return "true".equals(this.parameters.get(paramName));
+    }
+
     private void log(final String logText, final Loglevel level) {
         if ((this.loglevel == null) || (level.getLevel() <= this.loglevel.getLevel())) {
             System.out.println(logText);
@@ -909,7 +907,7 @@ public class PackageBuilder {
 
     private void populateUserEmails(final HashMap<String, ArrayList<InventoryItem>> myFile) throws ConnectionException {
 
-        final Set<String> userIDs = new HashSet<String>();
+        final Set<String> userIDs = new HashSet<>();
 
         for (final String mdName : myFile.keySet()) {
             for (final InventoryItem i : myFile.get(mdName)) {
@@ -919,7 +917,7 @@ public class PackageBuilder {
 
         // now call salesforce to get the emails and usernames
 
-        final HashMap<String, HashMap<String, String>> usersBySalesforceID = new HashMap<String, HashMap<String, String>>();
+        final HashMap<String, HashMap<String, String>> usersBySalesforceID = new HashMap<>();
 
         // login
         this.srcPartnerConnection = LoginUtil.soapLogin(this.srcUrl, this.srcUser, this.srcPwd);
@@ -947,7 +945,7 @@ public class PackageBuilder {
             while (!done) {
                 final SObject[] records = qResult.getRecords();
                 for (final SObject o : records) {
-                    final HashMap<String, String> userMap = new HashMap<String, String>();
+                    final HashMap<String, String> userMap = new HashMap<>();
                     userMap.put("Name", (String) o.getField("Name"));
                     userMap.put("Email", (String) o.getField("Email"));
                     userMap.put("Username", (String) o.getField("Username"));
@@ -1025,7 +1023,7 @@ public class PackageBuilder {
         final SimpleXMLDoc packageXML = new SimpleXMLDoc();
         packageXML.openTag("Package", "xmlns", "http://soap.sforce.com/2006/04/metadata");
 
-        final ArrayList<String> mdTypes = new ArrayList<String>(theMap.keySet());
+        final ArrayList<String> mdTypes = new ArrayList<>(theMap.keySet());
         Collections.sort(mdTypes);
 
         for (final String mdType : mdTypes) {

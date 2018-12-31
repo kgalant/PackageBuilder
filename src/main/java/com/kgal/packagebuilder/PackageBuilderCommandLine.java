@@ -83,6 +83,7 @@ public class PackageBuilderCommandLine {
         this.parameters.put("username", null);
         this.parameters.put("password", null);
         this.parameters.put("targetdirectory", null);
+        this.parameters.put("sourcedirectory", null);
         this.parameters.put("includechangedata", String.valueOf(PackageBuilder.INCLUDECHANGEDATA));
 
         // adding handling for building a package from a directory
@@ -117,6 +118,7 @@ public class PackageBuilderCommandLine {
                     this.addParameterFromProperty(props, "sf.password");
                     this.addParameterFromProperty(props, "skipItems");
                     this.addParameterFromProperty(props, "basedirectory");
+                    this.addParameterFromProperty(props, "sourcedirectory");
                     this.addParameterFromProperty(props, "includechangedata");
 
                     // adding handling for building a package from a directory
@@ -132,6 +134,7 @@ public class PackageBuilderCommandLine {
             this.addCmdlineParameter(line, "mi", "metadataitems");
             this.addCmdlineParameter(line, "sp", "skipItems");
             this.addCmdlineParameter(line, "d", "targetdirectory");
+            this.addCmdlineParameter(line, "sd", "sourcedirectory");
 
             // adding handling for building a package from a directory
             this.addCmdlineParameter(line, "b", "basedirectory");
@@ -147,17 +150,23 @@ public class PackageBuilderCommandLine {
                 System.out.println("No target directory provided, will default to current directory.");
                 this.parameters.put("targetdirectory", ".");
             }
-
+            
             // add include change telemetry data and download
             this.addBooleanParameter(line, "c", "includechangedata");
-            this.addBooleanParameter(line, "do", "download");
+            boolean download = this.addBooleanParameter(line, "do", "download");
             final boolean gitCommit = this.addBooleanParameter(line, "g", "gitcommit");
 
             // GIT needs download and changedata
             if (gitCommit) {
+                download = true;
                 this.parameters.put("includechangedata", "true");
                 this.parameters.put("download", "true");
             }
+            
+            if (download && !this.isParameterProvided("sourcedirectory")) {
+                System.out.println("No directory provided as download destination, will default to ./src.");
+                this.parameters.put("sourcedirectory", "./src");
+            }            
 
             // check that we have the minimum parameters
             // either b(asedir) and d(estinationdir)
@@ -284,6 +293,12 @@ public class PackageBuilderCommandLine {
 
         this.options.addOption(Option.builder("b").longOpt("basedirectory")
                 .desc("base directory from which to generate package.xml")
+                .hasArg()
+                .build());
+        
+        // When downloading source, where does it go:
+        this.options.addOption(Option.builder("sd").longOpt("sourcedirectory")
+                .desc("Directory to download meta data source to")
                 .hasArg()
                 .build());
 
