@@ -18,15 +18,11 @@ import java.util.regex.Pattern;
 import java.util.regex.PatternSyntaxException;
 
 import javax.xml.transform.TransformerConfigurationException;
-
-import org.eclipse.jgit.api.Git;
-import org.eclipse.jgit.api.errors.GitAPIException;
-import org.eclipse.jgit.api.errors.NoFilepatternException;
-import org.eclipse.jgit.lib.PersonIdent;
 import org.xml.sax.SAXException;
 
 import com.kgal.packagebuilder.inventory.InventoryDatabase;
 import com.kgal.packagebuilder.inventory.InventoryItem;
+import com.kgal.packagebuilder.output.GitOutputManager;
 import com.kgal.packagebuilder.output.MetaDataOutput;
 import com.kgal.packagebuilder.output.SimpleXMLDoc;
 import com.salesforce.migrationtoolutils.Utils;
@@ -174,7 +170,8 @@ public class PackageBuilder {
         if (this.downloadData) {
             final Map<String, Set<InventoryItem>> actualChangedFiles = this.downloadMetaData(actualInventory);
             if (this.gitCommit) {
-                this.commitToGit(actualChangedFiles);
+                GitOutputManager gom = new GitOutputManager(this.parameters);
+                gom.commitToGit(actualChangedFiles);
             }
         }
     }
@@ -229,31 +226,7 @@ public class PackageBuilder {
     // updates/deletes
     // and then writes the database file back
 
-    private void commitToGit(final Map<String, Set<InventoryItem>> actualChangedFiles)
-            throws IOException, NoFilepatternException, GitAPIException {
-        // TODO: Read the correct repository path
-        final Git git = Git.open(new File("."));
-
-        for (final String key : actualChangedFiles.keySet()) {
-            PersonIdent author = null;
-            String commitMessage = null;
-            final Set<InventoryItem> curSet = actualChangedFiles.get(key);
-            for (final InventoryItem curItem : curSet) {
-                // TODO: check if local file name works
-                git.add().addFilepattern(curItem.localFileName).call();
-                if (author == null) {
-                    author = new PersonIdent(curItem.lastModifiedByUsername, curItem.lastModifiedByEmail);
-                }
-                if (commitMessage == null) {
-                    commitMessage = "Change by " + curItem.lastModifiedByEmail + " [AutoRetrieve]";
-                }
-            }
-
-            git.commit().setMessage(commitMessage).setAuthor(author).call();
-
-        }
-
-    }
+    
 
     // this method runs through the inventory, identifies any items that have
     // changed since the database
