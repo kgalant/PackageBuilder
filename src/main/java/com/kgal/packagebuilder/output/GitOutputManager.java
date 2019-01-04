@@ -23,8 +23,10 @@ package com.kgal.packagebuilder.output;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashMap;
 import java.util.Map;
-import java.util.Set;
 
 import org.eclipse.jgit.api.Git;
 import org.eclipse.jgit.api.errors.GitAPIException;
@@ -45,30 +47,30 @@ public class GitOutputManager {
         this.parameters = parameters;
     }
     
-    public void commitToGit(final Map<String, Set<InventoryItem>> actualChangedFiles)
+    public void commitToGit(final HashMap<String, ArrayList<InventoryItem>>[] actualInventory)
             throws IOException, NoFilepatternException, GitAPIException {
         // TODO: Read the correct repository path
-        final Git git = Git.open(new File("."));
+//        final Git git = Git.open(new File("."));
+//
+//        for (final String key : actualInventory.keySet()) {
+//            PersonIdent author = null;
+//            String commitMessage = null;
+//            final Collection<InventoryItem> curSet = actualInventory.get(key);
+//            for (final InventoryItem curItem : curSet) {
+//                // TODO: check if local file name works
+//                git.add().addFilepattern(curItem.localFileName).call();
+//                if (author == null) {
+//                    author = new PersonIdent(curItem.lastModifiedByUsername, curItem.lastModifiedByEmail);
+//                }
+//                if (commitMessage == null) {
+//                    commitMessage = "Change by " + curItem.lastModifiedByEmail + " [AutoRetrieve]";
+//                }
+//            }
+//
+//            git.commit().setMessage(commitMessage).setAuthor(author).call();
 
-        for (final String key : actualChangedFiles.keySet()) {
-            PersonIdent author = null;
-            String commitMessage = null;
-            final Set<InventoryItem> curSet = actualChangedFiles.get(key);
-            for (final InventoryItem curItem : curSet) {
-                // TODO: check if local file name works
-                git.add().addFilepattern(curItem.localFileName).call();
-                if (author == null) {
-                    author = new PersonIdent(curItem.lastModifiedByUsername, curItem.lastModifiedByEmail);
-                }
-                if (commitMessage == null) {
-                    commitMessage = "Change by " + curItem.lastModifiedByEmail + " [AutoRetrieve]";
-                }
-            }
-
-            git.commit().setMessage(commitMessage).setAuthor(author).call();
-
-        }
-
+//        }
+//
     }
 
 }

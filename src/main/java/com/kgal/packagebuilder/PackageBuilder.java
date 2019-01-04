@@ -165,13 +165,13 @@ public class PackageBuilder {
             this.generateInventoryFromOrg(inventory);
             this.mode = OperationMode.ORG;
         }
-        final HashMap<String, ArrayList<InventoryItem>> actualInventory = this.generatePackageXML(inventory);
+        final HashMap<String, ArrayList<InventoryItem>>[] actualInventory = this.generatePackageXML(inventory);
 
         if (this.downloadData) {
-            final Map<String, Set<InventoryItem>> actualChangedFiles = this.downloadMetaData(actualInventory);
+            this.downloadMetaData(actualInventory);
             if (this.gitCommit) {
                 GitOutputManager gom = new GitOutputManager(this.parameters);
-                gom.commitToGit(actualChangedFiles);
+                gom.commitToGit(actualInventory);
             }
         }
     }
@@ -255,39 +255,8 @@ public class PackageBuilder {
 
     }
 
-    // added method for generating an inventory based on a local directory
-    // rather than an org
-
-    private String downloadIfChanged(final String itemType, final InventoryItem oneMetaData) throws IOException {
-        final String location = this.metaSourceDownloadDir + "Where does that file go";
-        // Smart Output Stream. Doesn't save if the files are the same
-        final MetaDataOutput out = new MetaDataOutput(location);
-        // TODO: actually download stuff
-
-        out.flush();
-        out.close();
-        return (out.isFileSaved() ? location : null);
-    }
-
-    private Map<String, Set<InventoryItem>> downloadMetaData(
-            final HashMap<String, ArrayList<InventoryItem>> actualInventory) throws IOException {
-        final Map<String, Set<InventoryItem>> result = new HashMap<>();
-
-        for (final String itemType : actualInventory.keySet()) {
-            final ArrayList<InventoryItem> itemList = actualInventory.get(itemType);
-            for (final InventoryItem oneMetaData : itemList) {
-                final String downLoadedFileName = this.downloadIfChanged(itemType, oneMetaData);
-                if (downLoadedFileName != null) {
-                    final String curEmail = oneMetaData.lastModifiedByEmail;
-                    final Set<InventoryItem> curItems = (result.containsKey(curEmail)) ? result.get(curEmail)
-                            : new HashSet<>();
-                    curItems.add(oneMetaData);
-                    result.put(curEmail, curItems);
-                }
-            }
-        }
-
-        return result;
+    private void downloadMetaData(final HashMap<String, ArrayList<InventoryItem>>[] actualInventory) throws IOException {
+      //FIXME dear KIM    
     }
 
     private void endTiming() {
@@ -638,7 +607,7 @@ public class PackageBuilder {
 
     }
 
-    private HashMap<String, ArrayList<InventoryItem>> generatePackageXML(
+    private HashMap<String, ArrayList<InventoryItem>>[] generatePackageXML(
             final HashMap<String, ArrayList<InventoryItem>> inventory)
             throws ConnectionException, IOException, TransformerConfigurationException, SAXException {
 
@@ -744,7 +713,7 @@ public class PackageBuilder {
                 + " (excludes count of items in type where entire type was skipped)",
                 Loglevel.NORMAL);
 
-        return myFile;
+        return files;
 
     }
 
@@ -1000,7 +969,7 @@ public class PackageBuilder {
         Collections.sort(mdTypes);
 
         for (final String mdType : mdTypes) {
-            packageXML.openTag("<types>");
+            packageXML.openTag("types");
             packageXML.addTag("name", mdType);
 
             for (final InventoryItem item : theMap.get(mdType)) {

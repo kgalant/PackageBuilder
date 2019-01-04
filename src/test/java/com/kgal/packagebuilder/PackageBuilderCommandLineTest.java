@@ -53,7 +53,7 @@ public class PackageBuilderCommandLineTest {
         assertTrue(result.containsKey("includechangedata"));
         assertTrue(result.containsKey("apiversion"));
         assertTrue(result.containsKey("username"));
-        assertTrue(result.containsKey("sourcedirectory"));
+        assertTrue(result.containsKey("metadatatargetdir"));
     }
 
     @Test

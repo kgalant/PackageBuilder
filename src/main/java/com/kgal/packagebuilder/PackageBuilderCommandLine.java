@@ -118,7 +118,7 @@ public class PackageBuilderCommandLine {
                     this.addParameterFromProperty(props, "sf.password");
                     this.addParameterFromProperty(props, "skipItems");
                     this.addParameterFromProperty(props, "basedirectory");
-                    this.addParameterFromProperty(props, "sourcedirectory");
+                    this.addParameterFromProperty(props, "metadatatargetdir");
                     this.addParameterFromProperty(props, "includechangedata");
 
                     // adding handling for building a package from a directory
@@ -134,7 +134,7 @@ public class PackageBuilderCommandLine {
             this.addCmdlineParameter(line, "mi", "metadataitems");
             this.addCmdlineParameter(line, "sp", "skipItems");
             this.addCmdlineParameter(line, "d", "targetdirectory");
-            this.addCmdlineParameter(line, "sd", "sourcedirectory");
+            this.addCmdlineParameter(line, "mt", "metadatatargetdir");
 
             // adding handling for building a package from a directory
             this.addCmdlineParameter(line, "b", "basedirectory");
@@ -297,7 +297,7 @@ public class PackageBuilderCommandLine {
                 .build());
         
         // When downloading source, where does it go:
-        this.options.addOption(Option.builder("sd").longOpt("sourcedirectory")
+        this.options.addOption(Option.builder("mt").longOpt("metadatatargetdir")
                 .desc("Directory to download meta data source to")
                 .hasArg()
                 .build());
