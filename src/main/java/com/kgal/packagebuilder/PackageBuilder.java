@@ -691,8 +691,10 @@ public class PackageBuilder {
 
         // if we're writing change telemetry into the package.xml, need to get
         // user emails now
+        if (includeChangeData) {
+            this.populateUserEmails(myFile);
+        }
 
-        this.populateUserEmails(myFile);
 
         for (int i = 0; i < files.length; i++) {
             if (i == 0) {
@@ -855,6 +857,10 @@ public class PackageBuilder {
                 userIDs.add(i.getLastModifiedById());
             }
         }
+        
+        // remove the null ID if it appears
+        
+        userIDs.remove(null);
 
         // now call salesforce to get the emails and usernames
 
@@ -906,8 +912,15 @@ public class PackageBuilder {
 
         for (final String mdName : myFile.keySet()) {
             for (final InventoryItem i : myFile.get(mdName)) {
-                i.lastModifiedByEmail = usersBySalesforceID.get(i.getLastModifiedById()).get("Email");
-                i.lastModifiedByUsername = usersBySalesforceID.get(i.getLastModifiedById()).get("Username");
+            	final HashMap<String, String> userMap = usersBySalesforceID.get(i.getLastModifiedById());
+            	if (userMap != null) {
+                    i.lastModifiedByEmail = userMap.get("Email");
+                    i.lastModifiedByUsername = userMap.get("Username");
+            	} else {
+            		i.lastModifiedByEmail = "null";
+            		i.lastModifiedByUsername = "null";
+            	}
+
             }
         }
 
@@ -977,7 +990,7 @@ public class PackageBuilder {
                 if (this.includeChangeData) {
                     attributes = new HashMap<>();
                     attributes.put("lastmodifiedby", item.getLastModifiedByName());
-                    attributes.put("lastmodified", format1.format(item.getLastModifiedDate().getTime()));
+                    attributes.put("lastmodified", format1.format(item.getLastModifiedDate() == null ? 0 : item.getLastModifiedDate().getTime()));
                     attributes.put("lastmodifiedemail", item.lastModifiedByEmail);
                 }
 
