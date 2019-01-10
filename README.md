@@ -1,3 +1,4 @@
+
 # PackageBuilder
 
 This is a tool for salesforce.com. It can do one of two things:
@@ -95,3 +96,19 @@ java -jar PackageBuilder.jar -d dst -b src
 Will run the packagebuilder, inventory the `src` directory and write a `dst/package.xml` file corresponding to the (recognized) content in the directory
 
 See properties files for additional detail - should be self-explanatory
+
+#### Use of changedata parameter
+The changedata parameter will augment the generated package.xml file with data about who/when last changed the given metadata item. So instead of getting 
+```
+<name>CustomField</name>
+<members>Account.Active__c</members>
+<members>Account.CustomerPriority__c</members>
+```
+you will get
+```
+<name>CustomField</name>
+<members lastmodified="2018-08-30T09:28:58" lastmodifiedby="Kim Galant"  lastmodifiedemail="kim.galant@salesforce.com">Account.Active__c</members>
+<members lastmodified="2018-08-30T09:28:58" lastmodifiedby="Kim Galant"  lastmodifiedemail="kim.galant@salesforce.com">Account.CustomerPriority__c</members>
+```
+Note that this adds a lastmodified attribute which contains the last change date of that item, the name and email of the user who changed it (from the SF User table).
+If this package.xml file is used for a retrieve, Salesforce (as of API 44) will happily ignore the additional attributes. They are added to help provide additional insight about who last touched each individual item.
