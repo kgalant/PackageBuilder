@@ -167,7 +167,8 @@ public class PackageBuilder {
         final HashMap<String, ArrayList<InventoryItem>>[] actualInventory = this.generatePackageXML(inventory);
 
         if (this.downloadData) {
-            this.downloadMetaData(actualInventory);
+            // don't need to download - already done that when writing out the file
+        	// this.downloadMetaData(actualInventory);
             if (this.gitCommit) {
                 GitOutputManager gom = new GitOutputManager(this.parameters);
                 gom.commitToGit(actualInventory);
@@ -254,9 +255,24 @@ public class PackageBuilder {
 
     }
 
-    private void downloadMetaData(final HashMap<String, ArrayList<InventoryItem>>[] actualInventory) throws IOException {
-      //FIXME dear KIM    
+    
+    /*
+     * Not needed ATM, download being done when writing each package.xml
+     * 
+    private void downloadMetaData(final HashMap<String, ArrayList<InventoryItem>>[] actualInventory) throws Exception {
+    	int packageNumber = 1;
+    	for (HashMap<String, ArrayList<InventoryItem>> inventory : actualInventory) {
+    		this.log("Asked to retrieve this package from org - will do so now.", Loglevel.BRIEF);
+        	OrgRetrieve myRetrieve = new OrgRetrieve(OrgRetrieve.Loglevel.VERBOSE);
+        	myRetrieve.setMetadataConnection(srcMetadataConnection);
+        	myRetrieve.setZipFile("mypackage" + packageNumber + ".zip");
+        	myRetrieve.setInventoryToRetrieve(inventory);
+        	myRetrieve.setApiVersion(myApiVersion);
+        	myRetrieve.setPackageNumber(packageNumber++);
+        	myRetrieve.retrieveZip();
+    	}
     }
+    */
 
     private void endTiming() {
         final long end = System.currentTimeMillis();
@@ -608,7 +624,7 @@ public class PackageBuilder {
 
     private HashMap<String, ArrayList<InventoryItem>>[] generatePackageXML(
             final HashMap<String, ArrayList<InventoryItem>> inventory)
-            throws ConnectionException, IOException, TransformerConfigurationException, SAXException {
+            throws Exception {
 
         int itemCount = 0;
         int skipCount = 0;
@@ -696,11 +712,11 @@ public class PackageBuilder {
         }
 
 
-        for (int i = 0; i < files.length; i++) {
+        for (int i = 1; i <= files.length; i++) {
             if (i == 0) {
-                this.writePackageXmlFile(files[i], "package.xml");
+                this.writePackageXmlFile(files[i-1], "package.xml", i);
             } else {
-                this.writePackageXmlFile(files[i], "package." + i + ".xml");
+                this.writePackageXmlFile(files[i-1], "package." + i + ".xml", i);
             }
         }
 
@@ -969,8 +985,8 @@ public class PackageBuilder {
      * <members>Trigger1</members> <members>Trigger2</members> </types>
      *
      */
-    private void writePackageXmlFile(final HashMap<String, ArrayList<InventoryItem>> theMap, final String filename)
-            throws IOException, TransformerConfigurationException, SAXException {
+    private void writePackageXmlFile(final HashMap<String, ArrayList<InventoryItem>> theMap, final String filename, int packageNumber)
+            throws Exception {
 
         final SimpleDateFormat format1 = new SimpleDateFormat(PackageBuilder.DEFAULT_DATE_FORMAT);
 
@@ -1003,6 +1019,17 @@ public class PackageBuilder {
 
         Utils.writeFile(this.targetDir + filename, packageXML.toString());
         this.log("Writing " + new File(this.targetDir + filename).getCanonicalPath(), Loglevel.BRIEF);
+        
+        if (downloadData) {
+        	this.log("Asked to retrieve this package from org - will do so now.", Loglevel.BRIEF);
+        	OrgRetrieve myRetrieve = new OrgRetrieve(OrgRetrieve.Loglevel.VERBOSE);
+        	myRetrieve.setMetadataConnection(srcMetadataConnection);
+        	myRetrieve.setZipFile(filename.replace("xml", "zip"));
+        	myRetrieve.setManifestFile(this.targetDir + filename);
+        	myRetrieve.setApiVersion(myApiVersion);
+        	myRetrieve.setPackageNumber(packageNumber);
+        	myRetrieve.retrieveZip();
+        }
     }
 
 }

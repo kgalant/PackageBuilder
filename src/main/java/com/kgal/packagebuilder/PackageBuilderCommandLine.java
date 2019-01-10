@@ -143,7 +143,7 @@ public class PackageBuilderCommandLine {
             if (line.hasOption("v")) {
                 this.parameters.put("loglevel", "verbose");
             }
-
+            
             // add default to current directory if no target directory given
 
             if (!this.isParameterProvided("targetdirectory")) {
@@ -163,9 +163,9 @@ public class PackageBuilderCommandLine {
                 this.parameters.put("download", "true");
             }
             
-            if (download && !this.isParameterProvided("sourcedirectory")) {
-                System.out.println("No directory provided as download destination, will default to ./src.");
-                this.parameters.put("sourcedirectory", "./src");
+            if (download && !this.isParameterProvided("metadatatargetdir")) {
+                System.out.println("No directory provided as download destination, will default to current directory");
+                this.parameters.put("metadatatargetdir", ".");
             }            
 
             // check that we have the minimum parameters
