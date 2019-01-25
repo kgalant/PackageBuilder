@@ -172,10 +172,10 @@ public class PackageBuilder {
         if (this.downloadData) {
             // don't need to download - already done that when writing out the file
         	// this.downloadMetaData(actualInventory);
-            if (this.gitCommit) {
-                GitOutputManager gom = new GitOutputManager(this.parameters);
-                gom.commitToGit(actualInventory);
-            }
+//            if (this.gitCommit) {
+//                GitOutputManager gom = new GitOutputManager(this.parameters);
+//                gom.commitToGit(actualInventory);
+//            }
         }
     }
 
