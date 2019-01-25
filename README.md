@@ -37,6 +37,8 @@ directory where the the code will look for a SFDC package structure (e.g. classe
 output verbose logging instead of just core output
 * -c,--includechangedata
 include data on who last changed the item directly in the members tag of every item of the package.xml
+* -mx,--maxitems `<arg>`    
+max number of items to put into a single package.xml (10000 is current max enforced by SF platform, for API 33 and higher, 5000 before)
 
 All parameters can be provided in parameter files specified with the -o parameter. More than one file can be provided (as in the example below, where one file would define what to fetch, skippatterns, etc., and the other where to fetch from). If any parameters are provided both in files and on the command line, the command line ones will be used. 
 
