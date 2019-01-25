@@ -73,7 +73,7 @@ public class PackageBuilder {
     private static final String  DBFILENAMESUFFIX       = ".packageBuilderDB";
     private static final String  DEFAULT_DATE_FORMAT    = "yyyy-MM-dd'T'HH:mm:ss";
     private static final String  URLBASE                = "/services/Soap/u/";
-    private static final int     MAXITEMSINPACKAGE      = 10000;
+    public static final int     MAXITEMSINPACKAGE      = 10000;
     public static final double   API_VERSION            = 44.0;
     public static final boolean  INCLUDECHANGEDATA      = false;
     private static final boolean FILTERVERSIONLESSFLOWS = true;
@@ -124,6 +124,7 @@ public class PackageBuilder {
     private boolean includeChangeData = false;
     private boolean downloadData      = false;
     private boolean gitCommit         = false;
+    private int		maxItemsInPackage = MAXITEMSINPACKAGE;
 
     // Constructor that gets all settings as map
     public PackageBuilder(final Map<String, String> parameters) {
@@ -137,9 +138,11 @@ public class PackageBuilder {
         this.loglevel = ("verbose".equals(this.parameters.get("loglevel"))) ? Loglevel.NORMAL : Loglevel.BRIEF;
  
         // Check what to do based on parameters
-        this.includeChangeData = this.isParamTrue("includechangedata");
-        this.downloadData = this.isParamTrue("download");
-        this.gitCommit = this.isParamTrue("gitcommit");
+        this.includeChangeData = this.isParamTrue(PackageBuilderCommandLine.INCLUDECHANGEDATA_LONGNAME);
+        this.downloadData = this.isParamTrue(PackageBuilderCommandLine.DOWNLOAD_LONGNAME);
+        this.gitCommit = this.isParamTrue(PackageBuilderCommandLine.GITCOMMIT_LONGNAME);
+        
+        this.maxItemsInPackage = Integer.valueOf(this.parameters.get(PackageBuilderCommandLine.MAXITEMS_LONGNAME));
 
         // initialize inventory - it will be used in both types of operations
         // (connect to org or run local)
@@ -149,15 +152,15 @@ public class PackageBuilder {
         // HashMap<String,ArrayList<String>> inventory = new
         // HashMap<String,ArrayList<String>>();
 
-        this.myApiVersion = Double.parseDouble(this.parameters.get("apiversion"));
-        this.targetDir = Utils.checkPathSlash(Utils.checkPathSlash(this.parameters.get("targetdirectory")));
-        this.metaSourceDownloadDir = Utils.checkPathSlash(Utils.checkPathSlash(this.parameters.get("sourcedirectory")));
+        this.myApiVersion = Double.parseDouble(this.parameters.get(PackageBuilderCommandLine.APIVERSION_LONGNAME));
+        this.targetDir = Utils.checkPathSlash(Utils.checkPathSlash(this.parameters.get(PackageBuilderCommandLine.DESTINATION_LONGNAME)));
+        this.metaSourceDownloadDir = Utils.checkPathSlash(Utils.checkPathSlash(this.parameters.get(PackageBuilderCommandLine.BASEDIRECTORY_LONGNAME)));
 
         // handling for building a package from a directory
         // if we have a base directory set, ignore everything else and generate
         // from the directory
 
-        if (this.parameters.get("basedirectory") != null) {
+        if (this.parameters.get(PackageBuilderCommandLine.BASEDIRECTORY_LONGNAME) != null) {
             this.generateInventoryFromDir(inventory);
             this.mode = OperationMode.DIR;
         } else {
@@ -188,22 +191,62 @@ public class PackageBuilder {
             final int mdTypeSize = mdTypeList.size();
 
             // do we have room in this file for the
-            if ((fileCount + mdTypeSize) > PackageBuilder.MAXITEMSINPACKAGE) {
+            if ((fileCount + mdTypeSize) > maxItemsInPackage) {
                 // no, we don't, finish file off, add to list, create new and
                 // add to that
-                files.add(currentFile);
-                currentFile = new HashMap<>();
-
+                
+                this.log("Type " + mdType + ", won't fit into this file - #items: " + mdTypeSize + ".",
+                        Loglevel.NORMAL);
+                
+                //put part of this type into this file
+                
+                ArrayList<InventoryItem> mdTypeListPartial = new ArrayList<InventoryItem>(mdTypeList.subList(0, maxItemsInPackage - fileCount));
+            	currentFile.put(mdType, mdTypeListPartial);
+            	mdTypeList.removeAll(mdTypeListPartial);
+            	fileCount += mdTypeListPartial.size();
+            	this.log(
+                        "Adding type: " + mdType + "(" + mdTypeListPartial.size() + " items) to file " + fileIndex + ", total count now: "
+                                + fileCount,
+                        Loglevel.NORMAL);
+            	files.add(currentFile);
+                
+            	// finish and start new file
+            	
                 this.log("Finished composing file " + fileIndex + ", total count: " + fileCount + "items.",
                         Loglevel.NORMAL);
+                currentFile = new HashMap<>();
                 fileCount = 0;
                 fileIndex++;
             }
             // now add this type to this file and continue
+            // but need to check that this type isn't more than maxItems
+            // if yes, then split this type into multiple pieces
+            
+            while (mdTypeList.size() > maxItemsInPackage) {
+            	// too much even for a single file just with that, 
+            	// break up into multiple files
+            	
+            	ArrayList<InventoryItem> mdTypeListPartial = new ArrayList<InventoryItem>(mdTypeList.subList(0, maxItemsInPackage));
+            	currentFile.put(mdType, mdTypeListPartial);
+            	fileCount += mdTypeListPartial.size();
+            	files.add(currentFile);
+                currentFile = new HashMap<>();
+            	mdTypeList.removeAll(mdTypeListPartial);
+            	this.log(
+                        "Adding type: " + mdType + "(" + mdTypeListPartial.size() + " items) to file " + fileIndex + ", total count now: "
+                                + fileCount,
+                        Loglevel.NORMAL);
+            	this.log("Finished composing file " + fileIndex + ", total count: " + fileCount + "items.",
+                        Loglevel.NORMAL);
+            	fileCount = 0;
+                fileIndex++;
+            	
+            }
+            
             currentFile.put(mdType, mdTypeList);
-            fileCount += mdTypeSize;
+            fileCount += mdTypeList.size();
             this.log(
-                    "Adding type: " + mdType + "(" + mdTypeSize + " items) to file " + fileIndex + ", total count now: "
+                    "Adding type: " + mdType + "(" + mdTypeList.size() + " items) to file " + fileIndex + ", total count now: "
                             + fileCount,
                     Loglevel.NORMAL);
         }
@@ -438,7 +481,7 @@ public class PackageBuilder {
 
     private void generateInventoryFromDir(final HashMap<String, ArrayList<InventoryItem>> inventory)
             throws IOException {
-        final String basedir = this.parameters.get("basedirectory");
+        final String basedir = this.parameters.get(PackageBuilderCommandLine.BASEDIRECTORY_LONGNAME);
 
         // check if the directory is valid
 
@@ -573,10 +616,10 @@ public class PackageBuilder {
 
         // Initialize the metadata connection we're going to need
 
-        this.srcUrl = this.parameters.get("serverurl") + PackageBuilder.URLBASE + this.myApiVersion;
-        this.srcUser = this.parameters.get("username");
-        this.srcPwd = this.parameters.get("password");
-        this.skipItems = this.parameters.get("skipItems");
+        this.srcUrl = this.parameters.get(PackageBuilderCommandLine.SERVERURL_LONGNAME) + PackageBuilder.URLBASE + this.myApiVersion;
+        this.srcUser = this.parameters.get(PackageBuilderCommandLine.USERNAME_LONGNAME);
+        this.srcPwd = this.parameters.get(PackageBuilderCommandLine.PASSWORD_LONGNAME);
+        this.skipItems = this.parameters.get(PackageBuilderCommandLine.SKIPPATTERNS_LONGNAME);
         // Make a login call to source
         this.srcMetadataConnection = LoginUtil.mdLogin(this.srcUrl, this.srcUser, this.srcPwd);
 
@@ -764,7 +807,7 @@ public class PackageBuilder {
     private HashSet<String> getTypesToFetch() throws ConnectionException {
 
         final HashSet<String> typesToFetch = new HashSet<>();
-        final String mdTypesToExamine = this.parameters.get("metadataitems");
+        final String mdTypesToExamine = this.parameters.get(PackageBuilderCommandLine.METADATAITEMS_LONGNAME);
 
         // get a describe
 
