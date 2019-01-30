@@ -3,7 +3,6 @@ package com.kgal.packagebuilder;
 import java.io.File;
 import java.io.IOException;
 import java.rmi.RemoteException;
-import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -12,18 +11,17 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.regex.PatternSyntaxException;
 
-import javax.xml.transform.TransformerConfigurationException;
-import org.xml.sax.SAXException;
-
 import com.kgal.packagebuilder.inventory.InventoryDatabase;
 import com.kgal.packagebuilder.inventory.InventoryItem;
 import com.kgal.packagebuilder.output.GitOutputManager;
-import com.kgal.packagebuilder.output.SimpleXMLDoc;
 import com.salesforce.migrationtoolutils.Utils;
 import com.sforce.soap.metadata.DescribeMetadataObject;
 import com.sforce.soap.metadata.DescribeMetadataResult;
@@ -71,9 +69,9 @@ public class PackageBuilder {
 
     // Static values that don;t change
     private static final String  DBFILENAMESUFFIX       = ".packageBuilderDB";
-    private static final String  DEFAULT_DATE_FORMAT    = "yyyy-MM-dd'T'HH:mm:ss";
+    public static final String   DEFAULT_DATE_FORMAT    = "yyyy-MM-dd'T'HH:mm:ss";
     private static final String  URLBASE                = "/services/Soap/u/";
-    public static final int     MAXITEMSINPACKAGE      = 10000;
+    public static final int      MAXITEMSINPACKAGE      = 10000;
     public static final double   API_VERSION            = 44.0;
     public static final boolean  INCLUDECHANGEDATA      = false;
     private static final boolean FILTERVERSIONLESSFLOWS = true;
@@ -115,7 +113,7 @@ public class PackageBuilder {
     private String                                  srcPwd;
     // added for database handling
     private String            dbFilename;
-    private String            targetDir = "";
+    private String            targetDir             = "";
     private String            metaSourceDownloadDir = "";
     private Loglevel          loglevel;
     private OperationMode     mode;
@@ -124,7 +122,7 @@ public class PackageBuilder {
     private boolean includeChangeData = false;
     private boolean downloadData      = false;
     private boolean gitCommit         = false;
-    private int		maxItemsInPackage = MAXITEMSINPACKAGE;
+    private int     maxItemsInPackage = MAXITEMSINPACKAGE;
 
     // Constructor that gets all settings as map
     public PackageBuilder(final Map<String, String> parameters) {
@@ -136,12 +134,12 @@ public class PackageBuilder {
 
         // set loglevel based on parameters
         this.loglevel = ("verbose".equals(this.parameters.get("loglevel"))) ? Loglevel.NORMAL : Loglevel.BRIEF;
- 
+
         // Check what to do based on parameters
         this.includeChangeData = this.isParamTrue(PackageBuilderCommandLine.INCLUDECHANGEDATA_LONGNAME);
         this.downloadData = this.isParamTrue(PackageBuilderCommandLine.DOWNLOAD_LONGNAME);
         this.gitCommit = this.isParamTrue(PackageBuilderCommandLine.GITCOMMIT_LONGNAME);
-        
+
         this.maxItemsInPackage = Integer.valueOf(this.parameters.get(PackageBuilderCommandLine.MAXITEMS_LONGNAME));
 
         // initialize inventory - it will be used in both types of operations
@@ -153,8 +151,10 @@ public class PackageBuilder {
         // HashMap<String,ArrayList<String>>();
 
         this.myApiVersion = Double.parseDouble(this.parameters.get(PackageBuilderCommandLine.APIVERSION_LONGNAME));
-        this.targetDir = Utils.checkPathSlash(Utils.checkPathSlash(this.parameters.get(PackageBuilderCommandLine.DESTINATION_LONGNAME)));
-        this.metaSourceDownloadDir = Utils.checkPathSlash(Utils.checkPathSlash(this.parameters.get(PackageBuilderCommandLine.BASEDIRECTORY_LONGNAME)));
+        this.targetDir = Utils.checkPathSlash(
+                Utils.checkPathSlash(this.parameters.get(PackageBuilderCommandLine.DESTINATION_LONGNAME)));
+        this.metaSourceDownloadDir = Utils.checkPathSlash(
+                Utils.checkPathSlash(this.parameters.get(PackageBuilderCommandLine.BASEDIRECTORY_LONGNAME)));
 
         // handling for building a package from a directory
         // if we have a base directory set, ignore everything else and generate
@@ -169,13 +169,9 @@ public class PackageBuilder {
         }
         final HashMap<String, ArrayList<InventoryItem>>[] actualInventory = this.generatePackageXML(inventory);
 
-        if (this.downloadData) {
-            // don't need to download - already done that when writing out the file
-        	// this.downloadMetaData(actualInventory);
-//            if (this.gitCommit) {
-//                GitOutputManager gom = new GitOutputManager(this.parameters);
-//                gom.commitToGit(actualInventory);
-//            }
+        if (this.gitCommit) {
+            GitOutputManager gom = new GitOutputManager(this.parameters);
+            gom.commitToGit(actualInventory);
         }
     }
 
@@ -194,24 +190,26 @@ public class PackageBuilder {
             if ((fileCount + mdTypeSize) > maxItemsInPackage) {
                 // no, we don't, finish file off, add to list, create new and
                 // add to that
-                
+
                 this.log("Type " + mdType + ", won't fit into this file - #items: " + mdTypeSize + ".",
                         Loglevel.NORMAL);
-                
-                //put part of this type into this file
-                
-                ArrayList<InventoryItem> mdTypeListPartial = new ArrayList<InventoryItem>(mdTypeList.subList(0, maxItemsInPackage - fileCount));
-            	currentFile.put(mdType, mdTypeListPartial);
-            	mdTypeList.removeAll(mdTypeListPartial);
-            	fileCount += mdTypeListPartial.size();
-            	this.log(
-                        "Adding type: " + mdType + "(" + mdTypeListPartial.size() + " items) to file " + fileIndex + ", total count now: "
+
+                // put part of this type into this file
+
+                ArrayList<InventoryItem> mdTypeListPartial = new ArrayList<InventoryItem>(
+                        mdTypeList.subList(0, maxItemsInPackage - fileCount));
+                currentFile.put(mdType, mdTypeListPartial);
+                mdTypeList.removeAll(mdTypeListPartial);
+                fileCount += mdTypeListPartial.size();
+                this.log(
+                        "Adding type: " + mdType + "(" + mdTypeListPartial.size() + " items) to file " + fileIndex
+                                + ", total count now: "
                                 + fileCount,
                         Loglevel.NORMAL);
-            	files.add(currentFile);
-                
-            	// finish and start new file
-            	
+                files.add(currentFile);
+
+                // finish and start new file
+
                 this.log("Finished composing file " + fileIndex + ", total count: " + fileCount + "items.",
                         Loglevel.NORMAL);
                 currentFile = new HashMap<>();
@@ -221,32 +219,35 @@ public class PackageBuilder {
             // now add this type to this file and continue
             // but need to check that this type isn't more than maxItems
             // if yes, then split this type into multiple pieces
-            
+
             while (mdTypeList.size() > maxItemsInPackage) {
-            	// too much even for a single file just with that, 
-            	// break up into multiple files
-            	
-            	ArrayList<InventoryItem> mdTypeListPartial = new ArrayList<InventoryItem>(mdTypeList.subList(0, maxItemsInPackage));
-            	currentFile.put(mdType, mdTypeListPartial);
-            	fileCount += mdTypeListPartial.size();
-            	files.add(currentFile);
+                // too much even for a single file just with that,
+                // break up into multiple files
+
+                ArrayList<InventoryItem> mdTypeListPartial = new ArrayList<InventoryItem>(
+                        mdTypeList.subList(0, maxItemsInPackage));
+                currentFile.put(mdType, mdTypeListPartial);
+                fileCount += mdTypeListPartial.size();
+                files.add(currentFile);
                 currentFile = new HashMap<>();
-            	mdTypeList.removeAll(mdTypeListPartial);
-            	this.log(
-                        "Adding type: " + mdType + "(" + mdTypeListPartial.size() + " items) to file " + fileIndex + ", total count now: "
+                mdTypeList.removeAll(mdTypeListPartial);
+                this.log(
+                        "Adding type: " + mdType + "(" + mdTypeListPartial.size() + " items) to file " + fileIndex
+                                + ", total count now: "
                                 + fileCount,
                         Loglevel.NORMAL);
-            	this.log("Finished composing file " + fileIndex + ", total count: " + fileCount + "items.",
+                this.log("Finished composing file " + fileIndex + ", total count: " + fileCount + "items.",
                         Loglevel.NORMAL);
-            	fileCount = 0;
+                fileCount = 0;
                 fileIndex++;
-            	
+
             }
-            
+
             currentFile.put(mdType, mdTypeList);
             fileCount += mdTypeList.size();
             this.log(
-                    "Adding type: " + mdType + "(" + mdTypeList.size() + " items) to file " + fileIndex + ", total count now: "
+                    "Adding type: " + mdType + "(" + mdTypeList.size() + " items) to file " + fileIndex
+                            + ", total count now: "
                             + fileCount,
                     Loglevel.NORMAL);
         }
@@ -268,8 +269,6 @@ public class PackageBuilder {
     // then runs the current inventory against that database to generate any
     // updates/deletes
     // and then writes the database file back
-
-    
 
     // this method runs through the inventory, identifies any items that have
     // changed since the database
@@ -298,24 +297,23 @@ public class PackageBuilder {
 
     }
 
-    
     /*
      * Not needed ATM, download being done when writing each package.xml
      * 
-    private void downloadMetaData(final HashMap<String, ArrayList<InventoryItem>>[] actualInventory) throws Exception {
-    	int packageNumber = 1;
-    	for (HashMap<String, ArrayList<InventoryItem>> inventory : actualInventory) {
-    		this.log("Asked to retrieve this package from org - will do so now.", Loglevel.BRIEF);
-        	OrgRetrieve myRetrieve = new OrgRetrieve(OrgRetrieve.Loglevel.VERBOSE);
-        	myRetrieve.setMetadataConnection(srcMetadataConnection);
-        	myRetrieve.setZipFile("mypackage" + packageNumber + ".zip");
-        	myRetrieve.setInventoryToRetrieve(inventory);
-        	myRetrieve.setApiVersion(myApiVersion);
-        	myRetrieve.setPackageNumber(packageNumber++);
-        	myRetrieve.retrieveZip();
-    	}
-    }
-    */
+     * private void downloadMetaData(final HashMap<String,
+     * ArrayList<InventoryItem>>[] actualInventory) throws Exception { int
+     * packageNumber = 1; for (HashMap<String, ArrayList<InventoryItem>>
+     * inventory : actualInventory) {
+     * this.log("Asked to retrieve this package from org - will do so now.",
+     * Loglevel.BRIEF); OrgRetrieve myRetrieve = new
+     * OrgRetrieve(OrgRetrieve.Loglevel.VERBOSE);
+     * myRetrieve.setMetadataConnection(srcMetadataConnection);
+     * myRetrieve.setZipFile("mypackage" + packageNumber + ".zip");
+     * myRetrieve.setInventoryToRetrieve(inventory);
+     * myRetrieve.setApiVersion(myApiVersion);
+     * myRetrieve.setPackageNumber(packageNumber++); myRetrieve.retrieveZip(); }
+     * }
+     */
 
     private void endTiming() {
         final long end = System.currentTimeMillis();
@@ -616,7 +614,8 @@ public class PackageBuilder {
 
         // Initialize the metadata connection we're going to need
 
-        this.srcUrl = this.parameters.get(PackageBuilderCommandLine.SERVERURL_LONGNAME) + PackageBuilder.URLBASE + this.myApiVersion;
+        this.srcUrl = this.parameters.get(PackageBuilderCommandLine.SERVERURL_LONGNAME) + PackageBuilder.URLBASE
+                + this.myApiVersion;
         this.srcUser = this.parameters.get(PackageBuilderCommandLine.USERNAME_LONGNAME);
         this.srcPwd = this.parameters.get(PackageBuilderCommandLine.PASSWORD_LONGNAME);
         this.skipItems = this.parameters.get(PackageBuilderCommandLine.SKIPPATTERNS_LONGNAME);
@@ -754,14 +753,21 @@ public class PackageBuilder {
             this.populateUserEmails(myFile);
         }
 
-
-        for (int i = 1; i <= files.length; i++) {
-            if (i == 0) {
-                this.writePackageXmlFile(files[i-1], "package.xml", i);
-            } else {
-                this.writePackageXmlFile(files[i-1], "package." + i + ".xml", i);
-            }
+        // USE THREADS TO speed things up
+        int totalFiles = files.length;
+        ExecutorService WORKER_THREAD_POOL = Executors.newFixedThreadPool(totalFiles);
+        CountDownLatch latch = new CountDownLatch(totalFiles);
+        
+        for (int i = 0; i < totalFiles; i++) {
+            String curFileName = (i == 0) 
+                ? "package.xml"
+                : "package." + i + ".xml";
+            PackageAndFilePersister pfp = new PackageAndFilePersister(latch, this.myApiVersion, this.targetDir, files[i], curFileName, i, this.includeChangeData, this.downloadData, this.srcMetadataConnection);
+            WORKER_THREAD_POOL.submit(pfp);
         }
+        
+        latch.await();
+        WORKER_THREAD_POOL.shutdownNow();
 
         final ArrayList<String> typesFound = new ArrayList<>(this.existingTypes);
         Collections.sort(typesFound);
@@ -916,9 +922,9 @@ public class PackageBuilder {
                 userIDs.add(i.getLastModifiedById());
             }
         }
-        
+
         // remove the null ID if it appears
-        
+
         userIDs.remove(null);
 
         // now call salesforce to get the emails and usernames
@@ -971,14 +977,14 @@ public class PackageBuilder {
 
         for (final String mdName : myFile.keySet()) {
             for (final InventoryItem i : myFile.get(mdName)) {
-            	final HashMap<String, String> userMap = usersBySalesforceID.get(i.getLastModifiedById());
-            	if (userMap != null) {
+                final HashMap<String, String> userMap = usersBySalesforceID.get(i.getLastModifiedById());
+                if (userMap != null) {
                     i.lastModifiedByEmail = userMap.get("Email");
                     i.lastModifiedByUsername = userMap.get("Username");
-            	} else {
-            		i.lastModifiedByEmail = "null";
-            		i.lastModifiedByUsername = "null";
-            	}
+                } else {
+                    i.lastModifiedByEmail = "null";
+                    i.lastModifiedByUsername = "null";
+                }
 
             }
         }
@@ -1009,70 +1015,6 @@ public class PackageBuilder {
 
         // output any new records to screen
 
-    }
-
-    /*
-     * private void writePackageXmlFile(HashMap<String, ArrayList<String>>
-     * theMap, String filename)
-     *
-     * this method will generate a package.xml file based on a HashMap<String,
-     * ArrayList<String>> and a filename used to cater for big orgs that burst
-     * limits input hashmap structure: ApexClass -> [Class1,Class2] ApexTrigger
-     * -> [Trigger1,Trigger2]
-     *
-     * expecting only to see types which are populated (i.e. have at least 1
-     * item)
-     *
-     * Expected output: <types> <name>ApexClass</name> <members>Class1</members>
-     * <members>Class2</members> </types> <types> <name>ApexTrigger</name>
-     * <members>Trigger1</members> <members>Trigger2</members> </types>
-     *
-     */
-    private void writePackageXmlFile(final HashMap<String, ArrayList<InventoryItem>> theMap, final String filename, int packageNumber)
-            throws Exception {
-
-        final SimpleDateFormat format1 = new SimpleDateFormat(PackageBuilder.DEFAULT_DATE_FORMAT);
-
-        final SimpleXMLDoc packageXML = new SimpleXMLDoc();
-        packageXML.openTag("Package", "xmlns", "http://soap.sforce.com/2006/04/metadata");
-
-        final ArrayList<String> mdTypes = new ArrayList<>(theMap.keySet());
-        Collections.sort(mdTypes);
-
-        for (final String mdType : mdTypes) {
-            packageXML.openTag("types");
-            packageXML.addTag("name", mdType);
-
-            for (final InventoryItem item : theMap.get(mdType)) {
-
-                Map<String, String> attributes = null;
-                if (this.includeChangeData) {
-                    attributes = new HashMap<>();
-                    attributes.put("lastmodifiedby", item.getLastModifiedByName());
-                    attributes.put("lastmodified", format1.format(item.getLastModifiedDate() == null ? 0 : item.getLastModifiedDate().getTime()));
-                    attributes.put("lastmodifiedemail", item.lastModifiedByEmail);
-                }
-
-                packageXML.addTag("members", item.itemName, attributes);
-            }
-            packageXML.closeTag(1);
-        }
-        packageXML.addTag("version", String.valueOf(this.myApiVersion));
-        packageXML.closeDocument();
-
-        Utils.writeFile(this.targetDir + filename, packageXML.toString());
-        this.log("Writing " + new File(this.targetDir + filename).getCanonicalPath(), Loglevel.BRIEF);
-        
-        if (downloadData) {
-        	this.log("Asked to retrieve this package from org - will do so now.", Loglevel.BRIEF);
-        	OrgRetrieve myRetrieve = new OrgRetrieve(OrgRetrieve.Loglevel.VERBOSE);
-        	myRetrieve.setMetadataConnection(srcMetadataConnection);
-        	myRetrieve.setZipFile(filename.replace("xml", "zip"));
-        	myRetrieve.setManifestFile(this.targetDir + filename);
-        	myRetrieve.setApiVersion(myApiVersion);
-        	myRetrieve.setPackageNumber(packageNumber);
-        	myRetrieve.retrieveZip();
-        }
     }
 
 }

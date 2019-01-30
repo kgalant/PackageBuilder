@@ -28,10 +28,10 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
 
-//import org.eclipse.jgit.api.Git;
-//import org.eclipse.jgit.api.errors.GitAPIException;
-//import org.eclipse.jgit.api.errors.NoFilepatternException;
-//import org.eclipse.jgit.lib.PersonIdent;
+import org.eclipse.jgit.api.Git;
+import org.eclipse.jgit.api.errors.GitAPIException;
+import org.eclipse.jgit.api.errors.NoFilepatternException;
+import org.eclipse.jgit.lib.PersonIdent;
 
 import com.kgal.packagebuilder.inventory.InventoryItem;
 
@@ -41,36 +41,36 @@ import com.kgal.packagebuilder.inventory.InventoryItem;
  */
 public class GitOutputManager {
     
-//    private final Map<String, String> parameters;
+    private final Map<String, String> parameters;
+
+    public GitOutputManager(final Map<String, String> parameters) {
+        this.parameters = parameters;
+    }
+    
+    public void commitToGit(final HashMap<String, ArrayList<InventoryItem>>[] actualInventory)
+            throws IOException, NoFilepatternException, GitAPIException {
+        // TODO: Read the correct repository path
+       final Git git = Git.open(new File("."));
+
+//        for (final String key : actualInventory.keySet()) {
+//            PersonIdent author = null;
+//            String commitMessage = null;
+//            final Collection<InventoryItem> curSet = actualInventory.get(key);
+//            for (final InventoryItem curItem : curSet) {
+//                // TODO: check if local file name works
+//                git.add().addFilepattern(curItem.localFileName).call();
+//                if (author == null) {
+//                    author = new PersonIdent(curItem.lastModifiedByUsername, curItem.lastModifiedByEmail);
+//                }
+//                if (commitMessage == null) {
+//                    commitMessage = "Change by " + curItem.lastModifiedByEmail + " [AutoRetrieve]";
+//                }
+//            }
 //
-//    public GitOutputManager(final Map<String, String> parameters) {
-//        this.parameters = parameters;
-//    }
-//    
-//    public void commitToGit(final HashMap<String, ArrayList<InventoryItem>>[] actualInventory)
-//            throws IOException, NoFilepatternException, GitAPIException {
-//        // TODO: Read the correct repository path
-////        final Git git = Git.open(new File("."));
-////
-////        for (final String key : actualInventory.keySet()) {
-////            PersonIdent author = null;
-////            String commitMessage = null;
-////            final Collection<InventoryItem> curSet = actualInventory.get(key);
-////            for (final InventoryItem curItem : curSet) {
-////                // TODO: check if local file name works
-////                git.add().addFilepattern(curItem.localFileName).call();
-////                if (author == null) {
-////                    author = new PersonIdent(curItem.lastModifiedByUsername, curItem.lastModifiedByEmail);
-////                }
-////                if (commitMessage == null) {
-////                    commitMessage = "Change by " + curItem.lastModifiedByEmail + " [AutoRetrieve]";
-////                }
-////            }
-////
-////            git.commit().setMessage(commitMessage).setAuthor(author).call();
+//            git.commit().setMessage(commitMessage).setAuthor(author).call();
 //
-////        }
-////
-//    }
+//        }
+
+    }
 
 }
