@@ -24,12 +24,14 @@ package com.kgal.packagebuilder;
 import java.io.File;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Calendar;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Callable;
 
 import com.kgal.packagebuilder.PackageBuilder.Loglevel;
+import com.kgal.packagebuilder.PersistResult.Status;
 import com.kgal.packagebuilder.inventory.InventoryItem;
 import com.kgal.packagebuilder.output.SimpleXMLDoc;
 import com.salesforce.migrationtoolutils.Utils;
@@ -41,8 +43,7 @@ import com.sforce.soap.metadata.MetadataConnection;
  * @author swissel
  *
  */
-// TODO: Change to runnableFuture
-public class PackageAndFilePersister implements Runnable {
+public class PackageAndFilePersister implements Callable<PersistResult> {
 
     private final HashMap<String, ArrayList<InventoryItem>> theMap;
     private final String                                    filename;
@@ -51,18 +52,23 @@ public class PackageAndFilePersister implements Runnable {
     private final boolean                                   downloadData;
     private final double                                    myApiVersion;
     private final String                                    targetDir;
+    private final String                                    metaSourceDownloadDir;
     private final MetadataConnection                        metadataConnection;
     private final Loglevel                                  loglevel = Loglevel.BRIEF;
-    private final CountDownLatch latch;
+    private final PersistResult                             result   = new PersistResult();
 
-    public PackageAndFilePersister(final CountDownLatch latch, final double myApiVersion, final String targetDir,
+    private OrgRetrieve myRetrieve = null;
+
+    public PackageAndFilePersister(final double myApiVersion,
+            final String targetDir,
+            final String metaSourceDownloadDir,
             final HashMap<String, ArrayList<InventoryItem>> theMap,
             final String filename,
             final int packageNumber, final boolean includeChangeData, final boolean download,
             final MetadataConnection metadataConnection) {
-        this.latch = latch;
         this.myApiVersion = myApiVersion;
         this.targetDir = targetDir;
+        this.metaSourceDownloadDir = metaSourceDownloadDir;
         this.theMap = theMap;
         this.filename = filename;
         this.packageNumber = packageNumber;
@@ -75,7 +81,7 @@ public class PackageAndFilePersister implements Runnable {
      * @see java.lang.Runnable#run()
      */
     @Override
-    public void run() {
+    public PersistResult call() throws Exception {
 
         try {
             final SimpleDateFormat format1 = new SimpleDateFormat(PackageBuilder.DEFAULT_DATE_FORMAT);
@@ -111,20 +117,50 @@ public class PackageAndFilePersister implements Runnable {
             this.log("Writing " + new File(this.targetDir + this.filename).getCanonicalPath(), Loglevel.BRIEF);
 
             if (this.downloadData) {
-                this.log("Asked to retrieve this package from org - will do so now.", Loglevel.BRIEF);
-                final OrgRetrieve myRetrieve = new OrgRetrieve(OrgRetrieve.Loglevel.VERBOSE);
-                myRetrieve.setMetadataConnection(this.metadataConnection);
-                myRetrieve.setZipFile(this.filename.replace("xml", "zip"));
-                myRetrieve.setManifestFile(this.targetDir + this.filename);
-                myRetrieve.setApiVersion(this.myApiVersion);
-                myRetrieve.setPackageNumber(this.packageNumber);
-                myRetrieve.retrieveZip();
+                this.downloadAndUnzip();
+            } else {
+                this.result.setStatus(PersistResult.Status.SUCCESS);
+
             }
+
         } catch (final Exception e) {
+            this.result.setStatus(PersistResult.Status.FAILURE);
+
             e.printStackTrace();
+        } finally {
+            this.result.setDone();
         }
-        // Tell the threadpool guys they are done
-        latch.countDown();
+        return this.result;
+    }
+
+    private void downloadAndUnzip() throws Exception {
+        this.log("Asked to retrieve this package from org - will do so now.", Loglevel.BRIEF);
+        myRetrieve = new OrgRetrieve(OrgRetrieve.Loglevel.VERBOSE);
+        final String zipFileName = this.filename.replace("xml", "zip");
+        myRetrieve.setMetadataConnection(this.metadataConnection);
+        myRetrieve.setZipFile(zipFileName);
+        myRetrieve.setManifestFile(this.targetDir + this.filename);
+        myRetrieve.setApiVersion(this.myApiVersion);
+        myRetrieve.setPackageNumber(this.packageNumber);
+        myRetrieve.retrieveZip();
+
+        final File zipResult = new File(zipFileName);
+        if (zipResult.exists()) {
+            final Map<String, Calendar> fileDates = new HashMap<>();
+            this.theMap.entrySet().forEach((entry) -> {
+                entry.getValue().forEach(item -> {
+                    // TODO: do we need itemName or localfilename or something
+                    // else
+                    fileDates.put(item.itemName.toLowerCase(), item.getLastModifiedDate());
+                });
+            });
+            final ZipAndFileFixer zff = new ZipAndFileFixer(zipResult, fileDates);
+            zff.extractAndAdjust(this.metaSourceDownloadDir);
+            this.result.setStatus(Status.SUCCESS);
+        } else {
+            this.log("Cancel requested or download ZIP file doesn't exist:" + zipFileName, Loglevel.BRIEF);
+            this.result.setStatus(Status.FAILURE);
+        }
     }
 
     private void log(final String logText, final Loglevel level) {

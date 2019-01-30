@@ -756,17 +756,23 @@ public class PackageBuilder {
         // USE THREADS TO speed things up
         int totalFiles = files.length;
         ExecutorService WORKER_THREAD_POOL = Executors.newFixedThreadPool(totalFiles);
-        CountDownLatch latch = new CountDownLatch(totalFiles);
-        
+
+        Collection<PackageAndFilePersister> allPersisters = new ArrayList<>();
         for (int i = 0; i < totalFiles; i++) {
-            String curFileName = (i == 0) 
-                ? "package.xml"
-                : "package." + i + ".xml";
-            PackageAndFilePersister pfp = new PackageAndFilePersister(latch, this.myApiVersion, this.targetDir, files[i], curFileName, i, this.includeChangeData, this.downloadData, this.srcMetadataConnection);
-            WORKER_THREAD_POOL.submit(pfp);
+            String curFileName = (i == 0)
+                    ? "package.xml"
+                    : "package." + i + ".xml";
+            PackageAndFilePersister pfp = new PackageAndFilePersister(this.myApiVersion,
+                    this.targetDir,
+                    this.metaSourceDownloadDir,
+                    files[i], curFileName, i,
+                    this.includeChangeData,
+                    this.downloadData,
+                    this.srcMetadataConnection);
+            allPersisters.add(pfp);
         }
-        
-        latch.await();
+
+        WORKER_THREAD_POOL.invokeAll(allPersisters);
         WORKER_THREAD_POOL.shutdownNow();
 
         final ArrayList<String> typesFound = new ArrayList<>(this.existingTypes);
