@@ -160,6 +160,8 @@ public class PackageBuilderCommandLine {
 
                     // adding handling for building a package from a directory
                     this.addParameterFromProperty(props, DESTINATION_LONGNAME);
+                    this.addParameterFromProperty(props, DOWNLOAD_LONGNAME);
+                    this.addParameterFromProperty(props, GITCOMMIT_LONGNAME);
                 }
             }
 
