@@ -114,7 +114,7 @@ public class PackageBuilder {
     // added for database handling
     private String            dbFilename;
     private String            targetDir             = "";
-    private String            metaSourceDownloadDir = "";
+    private String            metaSourceDownloadDir = "src";
     private Loglevel          loglevel;
     private OperationMode     mode;
     private PartnerConnection srcPartnerConnection;
@@ -154,7 +154,7 @@ public class PackageBuilder {
         this.targetDir = Utils.checkPathSlash(
                 Utils.checkPathSlash(this.parameters.get(PackageBuilderCommandLine.DESTINATION_LONGNAME)));
         this.metaSourceDownloadDir = Utils.checkPathSlash(
-                Utils.checkPathSlash(this.parameters.get(PackageBuilderCommandLine.BASEDIRECTORY_LONGNAME)));
+                Utils.checkPathSlash(this.parameters.get(PackageBuilderCommandLine.METADATATARGETDIR_LONGNAME)));
 
         // handling for building a package from a directory
         // if we have a base directory set, ignore everything else and generate
