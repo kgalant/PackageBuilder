@@ -74,6 +74,8 @@ public class PackageBuilderCommandLine {
 	public static final String GITCOMMIT_LONGNAME = "gitcommit";
 	public static final String MAXITEMS = "mx";
 	public static final String MAXITEMS_LONGNAME = "maxitems";
+	public static final String LOCALONLY = "lo";
+    public static final String LOCALONLY_LONGNAME = "localonly";
 	
     /**
      * @param args
@@ -86,6 +88,7 @@ public class PackageBuilderCommandLine {
         if (pbc.parseCommandLine(args)) {
             final PackageBuilder pb = new PackageBuilder(pbc.getParameters());
             pb.run();
+            System.out.println("Done");
         }
 
     }
@@ -162,6 +165,7 @@ public class PackageBuilderCommandLine {
                     this.addParameterFromProperty(props, DESTINATION_LONGNAME);
                     this.addParameterFromProperty(props, DOWNLOAD_LONGNAME);
                     this.addParameterFromProperty(props, GITCOMMIT_LONGNAME);
+                    this.addParameterFromProperty(props, LOCALONLY_LONGNAME);
                 }
             }
 
@@ -175,6 +179,7 @@ public class PackageBuilderCommandLine {
             this.addCmdlineParameter(line, DESTINATION, DESTINATION_LONGNAME);
             this.addCmdlineParameter(line, METADATATARGETDIR, METADATATARGETDIR_LONGNAME);
             this.addCmdlineParameter(line, MAXITEMS, MAXITEMS_LONGNAME);
+
 
             // adding handling for building a package from a directory
             this.addCmdlineParameter(line, BASEDIRECTORY, BASEDIRECTORY_LONGNAME);
@@ -194,6 +199,7 @@ public class PackageBuilderCommandLine {
             // add include change telemetry data and download
             this.addBooleanParameter(line, INCLUDECHANGEDATA, INCLUDECHANGEDATA_LONGNAME);
             boolean download = this.addBooleanParameter(line, DOWNLOAD, DOWNLOAD_LONGNAME);
+            this.addBooleanParameter(line, LOCALONLY, LOCALONLY_LONGNAME);
             final boolean gitCommit = this.addBooleanParameter(line, GITCOMMIT, GITCOMMIT_LONGNAME);
 
             // GIT needs download and changedata
@@ -271,7 +277,7 @@ public class PackageBuilderCommandLine {
         if (line.hasOption(cmdLineName) && (line.getOptionValue(cmdLineName) != null)
                 && (line.getOptionValue(cmdLineName).length() > 0)) {
             this.parameters.put(tagName, line.getOptionValue(cmdLineName));
-        }
+        } 
     }
 
     private void addParameterFromProperty(final Properties props, final String propName) {
@@ -373,7 +379,11 @@ public class PackageBuilderCommandLine {
                 .desc("max number of items to put in a single package xml (defaults to 10000 if not provided)")
                 .hasArg()
                 .build());
-
+        
+        // Deal with local packages only
+        this.options.addOption(Option.builder(LOCALONLY).longOpt(LOCALONLY_LONGNAME)
+                .desc("Don't re-download package.zip files, but process existing ones")
+                .build());
     }
 
 }
