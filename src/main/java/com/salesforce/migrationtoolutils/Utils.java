@@ -487,7 +487,13 @@ public class Utils {
 		if (objToDirMap == null || dirToObjectMap == null) {
 			initMaps();
 		}
-		return objToDirMap.get(metadataType);
+		String result = objToDirMap.get(metadataType);
+		if (result == null) {
+		    System.err.println("Unknown directory for META:"+metadataType);
+		    // Best guess result
+		    return metadataType.substring(0,1).toLowerCase()+metadataType.substring(1);
+		}
+		return result;
 	}
 	
 	public static String getMetadataTypeForDir(String dir) throws IOException {

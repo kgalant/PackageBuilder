@@ -41,7 +41,42 @@ import com.salesforce.migrationtoolutils.Utils;
  *
  */
 public class PackageBuilderCommandLine {
-
+	
+	// command line static strings
+	
+	public static final String APIVERSION = "a";
+	public static final String APIVERSION_LONGNAME = "apiversion";
+	public static final String METADATAITEMS = "mi";
+	public static final String METADATAITEMS_LONGNAME = "metadataitems";
+	public static final String ORGFILE = "o";
+	public static final String ORGFILE_LONGNAME = "orgfile";
+	public static final String USERNAME = "u";
+	public static final String USERNAME_LONGNAME = "username";
+	public static final String PASSWORD = "p";
+	public static final String PASSWORD_LONGNAME = "password";
+	public static final String SERVERURL = "s";
+	public static final String SERVERURL_LONGNAME = "serverurl";
+	public static final String SKIPPATTERNS = "sp";
+	public static final String SKIPPATTERNS_LONGNAME = "skippatterns";
+	public static final String DESTINATION = "d";
+	public static final String DESTINATION_LONGNAME = "destination";
+	public static final String BASEDIRECTORY = "b";
+	public static final String BASEDIRECTORY_LONGNAME = "basedirectory";
+	public static final String METADATATARGETDIR = "mt";
+	public static final String METADATATARGETDIR_LONGNAME = "metadatatargetdir";
+	public static final String VERBOSE = "v";
+	public static final String VERBOSE_LONGNAME = "verbose";
+	public static final String INCLUDECHANGEDATA = "c";
+	public static final String INCLUDECHANGEDATA_LONGNAME = "includechangedata";
+	public static final String DOWNLOAD = "do";
+	public static final String DOWNLOAD_LONGNAME = "download";
+	public static final String GITCOMMIT = "g";
+	public static final String GITCOMMIT_LONGNAME = "gitcommit";
+	public static final String MAXITEMS = "mx";
+	public static final String MAXITEMS_LONGNAME = "maxitems";
+	public static final String LOCALONLY = "lo";
+    public static final String LOCALONLY_LONGNAME = "localonly";
+	
     /**
      * @param args
      * @throws Exception
@@ -53,6 +88,7 @@ public class PackageBuilderCommandLine {
         if (pbc.parseCommandLine(args)) {
             final PackageBuilder pb = new PackageBuilder(pbc.getParameters());
             pb.run();
+            System.out.println("Done");
         }
 
     }
@@ -76,20 +112,23 @@ public class PackageBuilderCommandLine {
 
         boolean canProceed = false;
 
-        this.parameters.put("apiversion", "" + PackageBuilder.API_VERSION);
-        this.parameters.put("metadataitems", null);
-        this.parameters.put("skipItems", null);
-        this.parameters.put("serverurl", null);
-        this.parameters.put("username", null);
-        this.parameters.put("password", null);
-        this.parameters.put("targetdirectory", null);
-        this.parameters.put("sourcedirectory", null);
-        this.parameters.put("includechangedata", String.valueOf(PackageBuilder.INCLUDECHANGEDATA));
+        this.parameters.put(APIVERSION_LONGNAME, "" + PackageBuilder.API_VERSION);
+        this.parameters.put(METADATAITEMS_LONGNAME, null);
+        this.parameters.put(SKIPPATTERNS_LONGNAME, null);
+        this.parameters.put(SERVERURL_LONGNAME, null);
+        this.parameters.put(USERNAME_LONGNAME, null);
+        this.parameters.put(PASSWORD_LONGNAME, null);
+        this.parameters.put(DESTINATION_LONGNAME, null);
+        this.parameters.put(BASEDIRECTORY_LONGNAME, null);
+        this.parameters.put(INCLUDECHANGEDATA_LONGNAME, String.valueOf(PackageBuilder.INCLUDECHANGEDATA));
 
         // adding handling for building a package from a directory
-        this.parameters.put("basedirectory", null);
+        this.parameters.put(BASEDIRECTORY_LONGNAME, null);
 
         final HashSet<String> nonMandatoryParams = new HashSet<>();
+        nonMandatoryParams.add("skipItems");
+        
+        //added for maxitems
         nonMandatoryParams.add("skipItems");
 
         final CommandLineParser parser = new DefaultParser();
@@ -106,79 +145,91 @@ public class PackageBuilderCommandLine {
         if (line != null) {
             // first initialize parameters from any parameter files provided
 
-            if (line.hasOption("o") && (line.getOptionValue("o") != null) && (line.getOptionValue("o").length() > 0)) {
-                final String paramFilesParameter = line.getOptionValue("o");
+            if (line.hasOption(ORGFILE) && (line.getOptionValue(ORGFILE) != null) && (line.getOptionValue(ORGFILE).length() > 0)) {
+                final String paramFilesParameter = line.getOptionValue(ORGFILE);
                 for (final String paramFileName : paramFilesParameter.split(",")) {
                     final Properties props = Utils.initProps(paramFileName.trim());
                     System.out.println("Loading parameters from file: " + paramFileName);
                     this.addParameterFromProperty(props, "sf.apiversion");
-                    this.addParameterFromProperty(props, "metadataitems");
+                    this.addParameterFromProperty(props, METADATAITEMS_LONGNAME);
                     this.addParameterFromProperty(props, "sf.serverurl");
                     this.addParameterFromProperty(props, "sf.username");
                     this.addParameterFromProperty(props, "sf.password");
-                    this.addParameterFromProperty(props, "skipItems");
-                    this.addParameterFromProperty(props, "basedirectory");
-                    this.addParameterFromProperty(props, "metadatatargetdir");
-                    this.addParameterFromProperty(props, "includechangedata");
+                    this.addParameterFromProperty(props, SKIPPATTERNS_LONGNAME);
+                    this.addParameterFromProperty(props, BASEDIRECTORY_LONGNAME);
+                    this.addParameterFromProperty(props, METADATATARGETDIR_LONGNAME);
+                    this.addParameterFromProperty(props, INCLUDECHANGEDATA_LONGNAME);
+                    this.addParameterFromProperty(props, MAXITEMS_LONGNAME);
 
                     // adding handling for building a package from a directory
-                    this.addParameterFromProperty(props, "targetdirectory");
+                    this.addParameterFromProperty(props, DESTINATION_LONGNAME);
+                    this.addParameterFromProperty(props, DOWNLOAD_LONGNAME);
+                    this.addParameterFromProperty(props, GITCOMMIT_LONGNAME);
+                    this.addParameterFromProperty(props, LOCALONLY_LONGNAME);
                 }
             }
 
             // now add all parameters form the commandline
-            this.addCmdlineParameter(line, "a", "apiversion");
-            this.addCmdlineParameter(line, "u", "username");
-            this.addCmdlineParameter(line, "s", "serverurl");
-            this.addCmdlineParameter(line, "p", "password");
-            this.addCmdlineParameter(line, "mi", "metadataitems");
-            this.addCmdlineParameter(line, "sp", "skipItems");
-            this.addCmdlineParameter(line, "d", "targetdirectory");
-            this.addCmdlineParameter(line, "mt", "metadatatargetdir");
+            this.addCmdlineParameter(line, APIVERSION, APIVERSION_LONGNAME);
+            this.addCmdlineParameter(line, USERNAME, USERNAME_LONGNAME);
+            this.addCmdlineParameter(line, SERVERURL, SERVERURL_LONGNAME);
+            this.addCmdlineParameter(line, PASSWORD, PASSWORD_LONGNAME);
+            this.addCmdlineParameter(line, METADATAITEMS, METADATAITEMS_LONGNAME);
+            this.addCmdlineParameter(line, SKIPPATTERNS, SKIPPATTERNS_LONGNAME);
+            this.addCmdlineParameter(line, DESTINATION, DESTINATION_LONGNAME);
+            this.addCmdlineParameter(line, METADATATARGETDIR, METADATATARGETDIR_LONGNAME);
+            this.addCmdlineParameter(line, MAXITEMS, MAXITEMS_LONGNAME);
+
 
             // adding handling for building a package from a directory
-            this.addCmdlineParameter(line, "b", "basedirectory");
+            this.addCmdlineParameter(line, BASEDIRECTORY, BASEDIRECTORY_LONGNAME);
 
             // adding handling for brief output parameter
-            if (line.hasOption("v")) {
-                this.parameters.put("loglevel", "verbose");
+            if (line.hasOption(VERBOSE)) {
+                this.parameters.put("loglevel", VERBOSE_LONGNAME);
             }
-
+            
             // add default to current directory if no target directory given
 
-            if (!this.isParameterProvided("targetdirectory")) {
+            if (!this.isParameterProvided(DESTINATION_LONGNAME)) {
                 System.out.println("No target directory provided, will default to current directory.");
-                this.parameters.put("targetdirectory", ".");
+                this.parameters.put(DESTINATION_LONGNAME, ".");
             }
             
             // add include change telemetry data and download
-            this.addBooleanParameter(line, "c", "includechangedata");
-            boolean download = this.addBooleanParameter(line, "do", "download");
-            final boolean gitCommit = this.addBooleanParameter(line, "g", "gitcommit");
+            this.addBooleanParameter(line, INCLUDECHANGEDATA, INCLUDECHANGEDATA_LONGNAME);
+            boolean download = this.addBooleanParameter(line, DOWNLOAD, DOWNLOAD_LONGNAME);
+            this.addBooleanParameter(line, LOCALONLY, LOCALONLY_LONGNAME);
+            final boolean gitCommit = this.addBooleanParameter(line, GITCOMMIT, GITCOMMIT_LONGNAME);
 
             // GIT needs download and changedata
             if (gitCommit) {
                 download = true;
-                this.parameters.put("includechangedata", "true");
-                this.parameters.put("download", "true");
+                this.parameters.put(INCLUDECHANGEDATA_LONGNAME, "true");
+                this.parameters.put(DOWNLOAD_LONGNAME, "true");
             }
             
-            if (download && !this.isParameterProvided("sourcedirectory")) {
-                System.out.println("No directory provided as download destination, will default to ./src.");
-                this.parameters.put("sourcedirectory", "./src");
-            }            
+            if (download && !this.isParameterProvided(METADATATARGETDIR_LONGNAME)) {
+                System.out.println("No directory provided as download destination, will default to current directory");
+                this.parameters.put(METADATATARGETDIR_LONGNAME, ".");
+            }        
+            
+            if (!this.isParameterProvided(MAXITEMS_LONGNAME)) {
+                System.out.println("No maxitems parameter provided, will default to " + PackageBuilder.MAXITEMSINPACKAGE + ".");
+                this.parameters.put(MAXITEMS_LONGNAME, String.valueOf(PackageBuilder.MAXITEMSINPACKAGE));
+            } 
 
             // check that we have the minimum parameters
             // either b(asedir) and d(estinationdir)
             // or s(f_url), p(assword), u(sername), mi(metadataitems)
 
-            if (this.isParameterProvided("basedirectory") &&
-                    this.isParameterProvided("targetdirectory")) {
+            if (this.isParameterProvided(BASEDIRECTORY_LONGNAME) &&
+                    this.isParameterProvided(DESTINATION_LONGNAME)) {
                 canProceed = true;
             } else {
-                if (this.isParameterProvided("serverurl") &&
-                        this.isParameterProvided("username") &&
-                        this.isParameterProvided("password")
+                if (this.isParameterProvided(SERVERURL_LONGNAME) &&
+                        this.isParameterProvided(USERNAME_LONGNAME) &&
+                        this.isParameterProvided(PASSWORD_LONGNAME)
 
                 ) {
                     canProceed = true;
@@ -226,7 +277,7 @@ public class PackageBuilderCommandLine {
         if (line.hasOption(cmdLineName) && (line.getOptionValue(cmdLineName) != null)
                 && (line.getOptionValue(cmdLineName).length() > 0)) {
             this.parameters.put(tagName, line.getOptionValue(cmdLineName));
-        }
+        } 
     }
 
     private void addParameterFromProperty(final Properties props, final String propName) {
@@ -256,73 +307,83 @@ public class PackageBuilderCommandLine {
     }
 
     private void setupOptions() {
-        this.options.addOption(Option.builder("o").longOpt("orgfile")
+        this.options.addOption(Option.builder(ORGFILE).longOpt(ORGFILE_LONGNAME)
                 .desc("file containing org parameters (see below)")
                 .hasArg()
                 .build());
-        this.options.addOption(Option.builder("u").longOpt("username")
+        this.options.addOption(Option.builder(USERNAME).longOpt(USERNAME_LONGNAME)
                 .desc("username for the org (someuser@someorg.com)")
                 .hasArg()
                 .build());
-        this.options.addOption(Option.builder("p").longOpt("password")
+        this.options.addOption(Option.builder(PASSWORD).longOpt(PASSWORD_LONGNAME)
                 .desc("password for the org (t0pSecr3t)")
                 .hasArg()
                 .build());
-        this.options.addOption(Option.builder("s").longOpt("serverurl")
+        this.options.addOption(Option.builder(SERVERURL).longOpt(SERVERURL_LONGNAME)
                 .desc("server URL for the org (https://login.salesforce.com)")
                 .hasArg()
                 .build());
-        this.options.addOption(Option.builder("a").longOpt("apiversion")
+        this.options.addOption(Option.builder(APIVERSION).longOpt(APIVERSION_LONGNAME)
                 .desc("api version to use, will default to " + PackageBuilder.API_VERSION)
                 .hasArg()
                 .build());
-        this.options.addOption(Option.builder("mi").longOpt("metadataitems")
+        this.options.addOption(Option.builder(METADATAITEMS).longOpt(METADATAITEMS_LONGNAME)
                 .desc("metadata items to fetch")
                 .hasArg()
                 .build());
-        this.options.addOption(Option.builder("sp").longOpt("skippatterns")
+        this.options.addOption(Option.builder(SKIPPATTERNS).longOpt(SKIPPATTERNS_LONGNAME)
                 .desc("patterns to skip when fetching")
                 .hasArg()
                 .build());
-        this.options.addOption(Option.builder("d").longOpt("destination")
+        this.options.addOption(Option.builder(DESTINATION).longOpt(DESTINATION_LONGNAME)
                 .desc("directory where the generated package.xml will be written")
                 .hasArg()
                 .build());
 
         // handling for building a package from a directory
 
-        this.options.addOption(Option.builder("b").longOpt("basedirectory")
+        this.options.addOption(Option.builder(BASEDIRECTORY).longOpt(BASEDIRECTORY_LONGNAME)
                 .desc("base directory from which to generate package.xml")
                 .hasArg()
                 .build());
         
         // When downloading source, where does it go:
-        this.options.addOption(Option.builder("mt").longOpt("metadatatargetdir")
+        this.options.addOption(Option.builder(METADATATARGETDIR).longOpt(METADATATARGETDIR_LONGNAME)
                 .desc("Directory to download meta data source to")
                 .hasArg()
                 .build());
 
         // adding handling for brief output parameter
 
-        this.options.addOption(Option.builder("v").longOpt("verbose")
+        this.options.addOption(Option.builder(VERBOSE).longOpt(VERBOSE_LONGNAME)
                 .desc("output verbose logging instead of just core output")
                 .build());
 
         // adding handling for change telemetry parameter
 
-        this.options.addOption(Option.builder("c").longOpt("includechangedata")
+        this.options.addOption(Option.builder(INCLUDECHANGEDATA).longOpt(INCLUDECHANGEDATA_LONGNAME)
                 .desc("include lastmodifiedby and date fields in every metadataitem output")
                 .build());
 
         // handling of direct download and git options
-        this.options.addOption(Option.builder("do").longOpt("download")
+        this.options.addOption(Option.builder(DOWNLOAD).longOpt(DOWNLOAD_LONGNAME)
                 .desc("directly download assets, removing the need for ANT or MDAPI call")
                 .build());
 
-        this.options.addOption(Option.builder("g").longOpt("gitcommit")
+        this.options.addOption(Option.builder(GITCOMMIT).longOpt(GITCOMMIT_LONGNAME)
                 .desc("commits the changes to git. Requires -d -c options")
                 .build());
-
+        
+        // handling of max items per package
+        this.options.addOption(Option.builder(MAXITEMS).longOpt(MAXITEMS_LONGNAME)
+                .desc("max number of items to put in a single package xml (defaults to 10000 if not provided)")
+                .hasArg()
+                .build());
+        
+        // Deal with local packages only
+        this.options.addOption(Option.builder(LOCALONLY).longOpt(LOCALONLY_LONGNAME)
+                .desc("Don't re-download package.zip files, but process existing ones")
+                .build());
     }
 
 }

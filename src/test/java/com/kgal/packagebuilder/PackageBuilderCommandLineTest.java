@@ -44,16 +44,16 @@ public class PackageBuilderCommandLineTest {
         args[0] = "-o properties/test.properties";
         pbc.parseCommandLine(args);
         Map<String,String> result = pbc.getParameters();
-        assertTrue(result.containsKey("skipItems"));
-        assertTrue(result.containsKey("password"));
-        assertTrue(result.containsKey("basedirectory"));
-        assertTrue(result.containsKey("targetdirectory"));
-        assertTrue(result.containsKey("serverurl"));
-        assertTrue(result.containsKey("metadataitems"));
-        assertTrue(result.containsKey("includechangedata"));
-        assertTrue(result.containsKey("apiversion"));
-        assertTrue(result.containsKey("username"));
-        assertTrue(result.containsKey("metadatatargetdir"));
+        assertTrue(result.containsKey(PackageBuilderCommandLine.SKIPPATTERNS_LONGNAME));
+        assertTrue(result.containsKey(PackageBuilderCommandLine.PASSWORD_LONGNAME));
+        assertTrue(result.containsKey(PackageBuilderCommandLine.BASEDIRECTORY_LONGNAME));
+        assertTrue(result.containsKey(PackageBuilderCommandLine.DESTINATION_LONGNAME));
+        assertTrue(result.containsKey(PackageBuilderCommandLine.SERVERURL_LONGNAME));
+        assertTrue(result.containsKey(PackageBuilderCommandLine.METADATAITEMS_LONGNAME));
+        assertTrue(result.containsKey(PackageBuilderCommandLine.INCLUDECHANGEDATA_LONGNAME));
+        assertTrue(result.containsKey(PackageBuilderCommandLine.APIVERSION_LONGNAME));
+        assertTrue(result.containsKey(PackageBuilderCommandLine.USERNAME_LONGNAME));
+        //assertTrue(result.containsKey("metadatatargetdir"));
     }
 
     @Test
@@ -73,9 +73,9 @@ public class PackageBuilderCommandLineTest {
         args[1] = "-g";
         pbc.parseCommandLine(args);
         Map<String,String> result = pbc.getParameters();
-        assertEquals("true", result.get("includechangedata"));
-        assertEquals("true", result.get("download"));
-        assertEquals("true", result.get("gitcommit"));        
+        assertEquals("true", result.get(PackageBuilderCommandLine.INCLUDECHANGEDATA_LONGNAME));
+        assertEquals("true", result.get(PackageBuilderCommandLine.DOWNLOAD_LONGNAME));
+        assertEquals("true", result.get(PackageBuilderCommandLine.GITCOMMIT_LONGNAME));        
     }
     
 }
