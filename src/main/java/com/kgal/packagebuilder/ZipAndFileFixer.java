@@ -64,6 +64,10 @@ public class ZipAndFileFixer {
 
     public void extractAndAdjust(final String targetDirName) throws IOException {
         final File targetDir = new File((targetDirName == null) ? "." : targetDirName);
+        Files.createParentDirs(targetDir);
+        if (!targetDir.exists()) {
+            targetDir.mkdir();
+        }
         if (!targetDir.isDirectory()) {
             throw new IOException("Target dir is not a directory:" + targetDirName);
         }
@@ -75,7 +79,7 @@ public class ZipAndFileFixer {
                 final FileOutputStream out = new FileOutputStream(outFile);
                 ByteStreams.copy(zis, out);
                 out.close();
-                this.fixFileDate(outFile);
+                this.fixFileDate(targetDir, outFile);
 
             }
             zipEntry = zis.getNextEntry();
@@ -84,8 +88,8 @@ public class ZipAndFileFixer {
         zis.close();
     }
 
-    private void fixFileDate(final File outFile) {
-        final String key = outFile.getName().toLowerCase();
+    private void fixFileDate(final File targetDir, final File outFile) {
+        final String key = this.nameWithPathWithOutExtension(targetDir, outFile);
         if (outFile.exists() && (this.fileDates != null) && this.fileDates.containsKey(key)) {
             try {
                 final Calendar newDate = this.fileDates.get(key);
@@ -95,6 +99,17 @@ public class ZipAndFileFixer {
             }
         }
 
+    }
+
+    /**
+     * Extract the file name including the relative path (below target)
+     * minus the extension to assign the right user
+     */
+    private String nameWithPathWithOutExtension(final File rootDir, final File rawFile) {
+        final String fullString = rawFile.getAbsolutePath();
+        final String rootString = rootDir.getAbsolutePath();
+        final String rawName = fullString.substring(rootString.length()+1);
+        return rawName.toLowerCase().substring(0, rawName.lastIndexOf("."));
     }
 
     private File newFile(final File destinationDir, final ZipEntry zipEntry) throws IOException {
