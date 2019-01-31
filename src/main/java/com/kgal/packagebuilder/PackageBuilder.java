@@ -11,7 +11,6 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
@@ -122,6 +121,7 @@ public class PackageBuilder {
     private boolean includeChangeData = false;
     private boolean downloadData      = false;
     private boolean gitCommit         = false;
+    private boolean simulateDataDownload = false;
     private int     maxItemsInPackage = MAXITEMSINPACKAGE;
 
     // Constructor that gets all settings as map
@@ -139,6 +139,7 @@ public class PackageBuilder {
         this.includeChangeData = this.isParamTrue(PackageBuilderCommandLine.INCLUDECHANGEDATA_LONGNAME);
         this.downloadData = this.isParamTrue(PackageBuilderCommandLine.DOWNLOAD_LONGNAME);
         this.gitCommit = this.isParamTrue(PackageBuilderCommandLine.GITCOMMIT_LONGNAME);
+        this.simulateDataDownload = this.isParamTrue(PackageBuilderCommandLine.LOCALONLY_LONGNAME);
 
         this.maxItemsInPackage = Integer.valueOf(this.parameters.get(PackageBuilderCommandLine.MAXITEMS_LONGNAME));
 
@@ -769,6 +770,9 @@ public class PackageBuilder {
                     this.includeChangeData,
                     this.downloadData,
                     this.srcMetadataConnection);
+            if (this.simulateDataDownload) {
+                pfp.setLocalOnly();
+            }
             allPersisters.add(pfp);
         }
 

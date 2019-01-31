@@ -22,6 +22,7 @@
 package com.kgal.packagebuilder;
 
 import java.io.File;
+import java.io.IOException;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Calendar;
@@ -58,6 +59,7 @@ public class PackageAndFilePersister implements Callable<PersistResult> {
     private final PersistResult                             result   = new PersistResult();
 
     private OrgRetrieve myRetrieve = null;
+    private boolean localOny = false;
 
     public PackageAndFilePersister(final double myApiVersion,
             final String targetDir,
@@ -75,6 +77,14 @@ public class PackageAndFilePersister implements Callable<PersistResult> {
         this.includeChangeData = includeChangeData;
         this.downloadData = download;
         this.metadataConnection = metadataConnection;
+    }
+    
+    /**
+     * Switch the persister to local only operation
+     * mainly used when you have both a local ZIP and XML
+     */
+    public void setLocalOnly() {
+        this.localOny = true;
     }
 
     /**
@@ -117,7 +127,7 @@ public class PackageAndFilePersister implements Callable<PersistResult> {
             this.log("Writing " + new File(this.targetDir + this.filename).getCanonicalPath(), Loglevel.BRIEF);
 
             if (this.downloadData) {
-                this.downloadAndUnzip();
+                this.downloadAndUnzip(this.localOny);
             } else {
                 this.result.setStatus(PersistResult.Status.SUCCESS);
 
@@ -133,26 +143,40 @@ public class PackageAndFilePersister implements Callable<PersistResult> {
         return this.result;
     }
 
-    private void downloadAndUnzip() throws Exception {
-        this.log("Asked to retrieve this package from org - will do so now.", Loglevel.BRIEF);
-        myRetrieve = new OrgRetrieve(OrgRetrieve.Loglevel.VERBOSE);
+    /**
+     * 
+     * @param doNotDownLoad
+     *            = Skip the download step - to repeat the unpackage and unzip
+     *            activity mainly for testing
+     * @throws Exception
+     */
+    private void downloadAndUnzip(final boolean doNotDownLoad) throws Exception {
         final String zipFileName = this.filename.replace("xml", "zip");
-        myRetrieve.setMetadataConnection(this.metadataConnection);
-        myRetrieve.setZipFile(zipFileName);
-        myRetrieve.setManifestFile(this.targetDir + this.filename);
-        myRetrieve.setApiVersion(this.myApiVersion);
-        myRetrieve.setPackageNumber(this.packageNumber);
-        myRetrieve.retrieveZip();
+        if (doNotDownLoad) {
+            this.log("Working with local packages, no actual download", Loglevel.BRIEF);
+        } else {
+            this.log("Asked to retrieve this package from org - will do so now.", Loglevel.BRIEF);
+            myRetrieve = new OrgRetrieve(OrgRetrieve.Loglevel.VERBOSE);
+            myRetrieve.setMetadataConnection(this.metadataConnection);
+            myRetrieve.setZipFile(zipFileName);
+            myRetrieve.setManifestFile(this.targetDir + this.filename);
+            myRetrieve.setApiVersion(this.myApiVersion);
+            myRetrieve.setPackageNumber(this.packageNumber);
+            myRetrieve.retrieveZip();
+        }
 
         final File zipResult = new File(zipFileName);
         if (zipResult.exists()) {
             final Map<String, Calendar> fileDates = new HashMap<>();
             this.theMap.entrySet().forEach((entry) -> {
-                entry.getValue().forEach(item -> {
-                    // TODO: do we need itemName or localfilename or something
-                    // else
-                    fileDates.put(item.itemName.toLowerCase(), item.getLastModifiedDate());
-                });
+                try {
+                    final String curKey = String.valueOf(Utils.getDirForMetadataType(entry.getKey()));
+                    entry.getValue().forEach(item -> {
+                        fileDates.put(curKey + "/" + item.itemName.toLowerCase(), item.getLastModifiedDate());
+                    });
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
             });
             final ZipAndFileFixer zff = new ZipAndFileFixer(zipResult, fileDates);
             zff.extractAndAdjust(this.metaSourceDownloadDir);
