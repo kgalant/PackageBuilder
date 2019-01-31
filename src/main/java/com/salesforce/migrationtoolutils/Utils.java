@@ -490,7 +490,8 @@ public class Utils {
 		String result = objToDirMap.get(metadataType);
 		if (result == null) {
 		    System.err.println("Unknown directory for META:"+metadataType);
-		    return metadataType.toLowerCase();
+		    // Best guess result
+		    return metadataType.substring(0,1).toLowerCase()+metadataType.substring(1);
 		}
 		return result;
 	}
