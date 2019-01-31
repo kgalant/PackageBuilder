@@ -55,6 +55,7 @@ public class ZipAndFileFixer {
 
     private final File                  zip;
     private final Map<String, Calendar> fileDates;
+    private int filesFixedCount = 0;
 
 
     public ZipAndFileFixer(final File zip, final Map<String, Calendar> fileDates) {
@@ -62,7 +63,7 @@ public class ZipAndFileFixer {
         this.fileDates = fileDates;
     }
 
-    public void extractAndAdjust(final String targetDirName) throws IOException {
+    public int extractAndAdjust(final String targetDirName) throws IOException {
         final File targetDir = new File((targetDirName == null) ? "." : targetDirName);
         Files.createParentDirs(targetDir);
         if (!targetDir.exists()) {
@@ -79,13 +80,14 @@ public class ZipAndFileFixer {
                 final FileOutputStream out = new FileOutputStream(outFile);
                 ByteStreams.copy(zis, out);
                 out.close();
-                this.fixFileDate(targetDir, outFile);
+                this.fixFileDate(targetDir, outFile.getAbsoluteFile());
 
             }
             zipEntry = zis.getNextEntry();
         }
 
         zis.close();
+        return this.filesFixedCount;
     }
 
     private void fixFileDate(final File targetDir, final File outFile) {
@@ -93,10 +95,16 @@ public class ZipAndFileFixer {
         if (outFile.exists() && (this.fileDates != null) && this.fileDates.containsKey(key)) {
             try {
                 final Calendar newDate = this.fileDates.get(key);
-                outFile.setLastModified(newDate.getTimeInMillis());
+                long theTime = newDate.getTimeInMillis();
+                if (!outFile.setLastModified(theTime)) {
+                    System.err.println("Couldn't update file date of "+outFile.getAbsolutePath());
+                }
+                this.filesFixedCount++;
             } catch (final Exception e) {
                 e.printStackTrace();
             }
+        } else if (this.fileDates != null) {
+            System.err.println("No file date found for "+key);
         }
 
     }
@@ -108,8 +116,10 @@ public class ZipAndFileFixer {
     private String nameWithPathWithOutExtension(final File rootDir, final File rawFile) {
         final String fullString = rawFile.getAbsolutePath();
         final String rootString = rootDir.getAbsolutePath();
-        final String rawName = fullString.substring(rootString.length()+1);
-        return rawName.toLowerCase().substring(0, rawName.lastIndexOf("."));
+        final String rawName = fullString.substring(rootString.length()+1).toLowerCase();
+        final String candidate = rawName.endsWith("-meta.xml") ? rawName.substring(0,rawName.length()-9) : rawName;       
+        final String candidate2 = candidate.contains(".") ? candidate.substring(0, candidate.lastIndexOf(".")) : candidate;
+        return (candidate2.startsWith("aura") || candidate2.startsWith("lwc")) ? candidate2.substring(0,candidate2.lastIndexOf("/")) : candidate2;
     }
 
     private File newFile(final File destinationDir, final ZipEntry zipEntry) throws IOException {
