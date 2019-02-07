@@ -27,10 +27,13 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
 
 import org.eclipse.jgit.api.Git;
+import org.eclipse.jgit.api.Status;
 import org.eclipse.jgit.api.errors.GitAPIException;
 import org.eclipse.jgit.api.errors.NoFilepatternException;
+import org.eclipse.jgit.errors.NoWorkTreeException;
 import org.eclipse.jgit.lib.PersonIdent;
 
 import com.kgal.packagebuilder.PackageBuilderCommandLine;
@@ -44,8 +47,8 @@ import com.salesforce.migrationtoolutils.Utils;
 public class GitOutputManager {
 
     private final Map<String, String> parameters;
-    private final File              gitPath;
-    private final File              sourceDirPath;
+    private final File                gitPath;
+    private final File                sourceDirPath;
 
     public GitOutputManager(final Map<String, String> parameters) {
         this.parameters = parameters;
@@ -68,7 +71,10 @@ public class GitOutputManager {
         Map<String, Collection<InventoryItem>> itemsByContributor = this.getFilesByContributor(this.sourceDirPath,
                 inventoryLookup, new HashMap<String, Collection<InventoryItem>>());
 
+        Collection<String> filesOfInterest = this.getFilesToCommit(git);
+
         itemsByContributor.entrySet().forEach(entry -> {
+            final Collection<String> actualToBeCommitted = new ArrayList<>();
             String user = entry.getKey();
             PersonIdent author = this.getIdenity(user);
             Collection<InventoryItem> allFiles = entry.getValue();
@@ -76,20 +82,24 @@ public class GitOutputManager {
             System.out.print(": ");
             System.out.println(allFiles.size());
             allFiles.forEach(inv -> {
-                String pattern = this.sourceDirPath.getName()+"/"+inv.localFileName;
+                String pattern = this.sourceDirPath.getName() + "/" + inv.localFileName;
+                if (filesOfInterest.contains(pattern.toLowerCase())) {
+                    try {
+                        git.add().addFilepattern(pattern).call();
+                    } catch (GitAPIException e) {
+                        e.printStackTrace();
+                    }
+                    actualToBeCommitted.add(pattern);
+                }
+            });
+            if (!actualToBeCommitted.isEmpty()) {
+                String commitMessage = "Changes by " + author.getName();
+                System.out.println("Committing " + commitMessage);
                 try {
-                    git.add().addFilepattern(pattern).call();
+                    git.commit().setMessage(commitMessage).setAuthor(author).call();
                 } catch (GitAPIException e) {
                     e.printStackTrace();
                 }
-            });
-            
-            String commitMessage = "Changes by " + author.getName();
-            System.out.println("Committing "+commitMessage);
-            try {
-                git.commit().setMessage(commitMessage).setAuthor(author).call();
-            } catch (GitAPIException e) {
-                e.printStackTrace();
             }
         });
 
@@ -111,7 +121,7 @@ public class GitOutputManager {
             }
         } else {
             // Process the actual file - if it can be found in the list
-            String localfile = curFile.getAbsolutePath().substring(this.sourceDirPath.getAbsolutePath().length()+1);
+            String localfile = curFile.getAbsolutePath().substring(this.sourceDirPath.getAbsolutePath().length() + 1);
             String key = localfile.substring(0, localfile.lastIndexOf("."));
             if (inventoryLookup.containsKey(key)) {
                 InventoryItem ii = inventoryLookup.get(key);
@@ -171,6 +181,80 @@ public class GitOutputManager {
                 }
             });
         }
+        return result;
+    }
+
+    private Collection<String> getFilesToCommit(Git git) {
+        final Collection<String> resultCandidate = new ArrayList<>();
+        try {
+            Status status = git.status().call();
+
+            Set<String> conflicting = status.getConflicting();
+            Set<String> added = status.getAdded();
+            Set<String> changed = status.getChanged();
+            Set<String> missing = status.getMissing();
+            Set<String> modified = status.getModified();
+            Set<String> removed = status.getRemoved();
+            Set<String> uncommittedChanges = status.getUncommittedChanges();
+            Set<String> untracked = status.getUntracked();
+            Set<String> untrackedFolders = status.getUntrackedFolders();
+
+            resultCandidate.addAll(conflicting);
+            resultCandidate.addAll(added);
+            resultCandidate.addAll(changed);
+            resultCandidate.addAll(missing);
+            resultCandidate.addAll(modified);
+            resultCandidate.addAll(removed);
+            resultCandidate.addAll(uncommittedChanges);
+            resultCandidate.addAll(untracked);
+            resultCandidate.addAll(untrackedFolders);
+
+            // Remove this after stuff works as expected
+            for (String conflict : conflicting) {
+                System.out.println("Conflicting: " + conflict);
+            }
+
+            for (String add : added) {
+                System.out.println("Added: " + add);
+            }
+
+            for (String change : changed) {
+                System.out.println("Change: " + change);
+            }
+
+            for (String miss : missing) {
+                System.out.println("Missing: " + miss);
+            }
+
+            for (String modify : modified) {
+                System.out.println("Modification: " + modify);
+            }
+
+            for (String remove : removed) {
+                System.out.println("Removed: " + remove);
+            }
+
+            for (String uncommitted : uncommittedChanges) {
+                System.out.println("Uncommitted: " + uncommitted);
+            }
+
+            for (String untrack : untracked) {
+                System.out.println("Untracked: " + untrack);
+            }
+
+            for (String untrack : untrackedFolders) {
+                System.out.println("Untracked Folder: " + untrack);
+            }
+
+        } catch (NoWorkTreeException | GitAPIException e) {
+            e.printStackTrace();
+        }
+
+        // We use lowercase for better matches
+        final Collection<String> result = new ArrayList<>();
+        resultCandidate.forEach(r -> {
+            result.add(r.toLowerCase());
+        });
         return result;
     }
 
