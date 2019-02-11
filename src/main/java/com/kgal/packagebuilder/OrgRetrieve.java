@@ -49,9 +49,9 @@ public class OrgRetrieve {
     // manifest file that controls which components get retrieved
     private String manifestFile;
 
-    private double apiVersion          = 44.0;
+    private double apiVersion          = 45.0;
     private int    packageNumber       = 1;
-    private int    secondsBetweenPolls = 15;
+    private int    secondsBetweenPolls = 30;
 
     // what to retrieve if not based on package.xml file
 
@@ -105,7 +105,7 @@ public class OrgRetrieve {
                 System.out.println("Retrieve warnings:\n" + stringBuilder);
             }
 
-            System.out.println("Writing results to zip file");
+            System.out.println("Writing results to zip file:"+zipFile);
             File resultsFile = new File(zipFile);
             FileOutputStream os = new FileOutputStream(resultsFile);
 

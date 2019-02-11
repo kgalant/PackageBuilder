@@ -9,10 +9,13 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -776,8 +779,19 @@ public class PackageBuilder {
             allPersisters.add(pfp);
         }
 
-        WORKER_THREAD_POOL.invokeAll(allPersisters);
-        WORKER_THREAD_POOL.shutdownNow();
+        List<Future<PersistResult>> persistResult = WORKER_THREAD_POOL.invokeAll(allPersisters);
+        WORKER_THREAD_POOL.awaitTermination(30, TimeUnit.MINUTES);
+        
+        persistResult.forEach(prf -> {
+            PersistResult pr;
+            try {
+                pr = prf.get();
+                this.log("Completion of" + pr.getName() + ": "+ String.valueOf(pr.getStatus()),Loglevel.BRIEF);
+            } catch (InterruptedException | ExecutionException e) {
+                e.printStackTrace();
+            }
+           
+        });
 
         final ArrayList<String> typesFound = new ArrayList<>(this.existingTypes);
         Collections.sort(typesFound);

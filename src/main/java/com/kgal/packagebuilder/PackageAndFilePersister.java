@@ -56,7 +56,7 @@ public class PackageAndFilePersister implements Callable<PersistResult> {
     private final String                                    metaSourceDownloadDir;
     private final MetadataConnection                        metadataConnection;
     private final Loglevel                                  loglevel = Loglevel.BRIEF;
-    private final PersistResult                             result   = new PersistResult();
+    private final PersistResult                             result;
 
     private OrgRetrieve myRetrieve = null;
     private boolean localOny = false;
@@ -77,6 +77,7 @@ public class PackageAndFilePersister implements Callable<PersistResult> {
         this.includeChangeData = includeChangeData;
         this.downloadData = download;
         this.metadataConnection = metadataConnection;
+        this.result = new PersistResult(filename);
     }
     
     /**
