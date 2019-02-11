@@ -17,6 +17,11 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Function;
+import java.util.logging.ConsoleHandler;
+import java.util.logging.Level;
+import java.util.logging.LogManager;
+import java.util.logging.Logger;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.regex.PatternSyntaxException;
@@ -24,6 +29,7 @@ import java.util.regex.PatternSyntaxException;
 import com.kgal.packagebuilder.inventory.InventoryDatabase;
 import com.kgal.packagebuilder.inventory.InventoryItem;
 import com.kgal.packagebuilder.output.GitOutputManager;
+import com.kgal.packagebuilder.output.LogFormatter;
 import com.salesforce.migrationtoolutils.Utils;
 import com.sforce.soap.metadata.DescribeMetadataObject;
 import com.sforce.soap.metadata.DescribeMetadataResult;
@@ -40,20 +46,6 @@ import com.sforce.soap.tooling.ToolingConnection;
 import com.sforce.ws.ConnectionException;
 
 public class PackageBuilder {
-
-    public enum Loglevel {
-        VERBOSE(2), NORMAL(1), BRIEF(0);
-        private final int level;
-
-        Loglevel(final int level) {
-            this.level = level;
-        }
-
-        int getLevel() {
-            return this.level;
-        }
-
-    };
 
     public enum OperationMode {
         DIR(0), ORG(1);
@@ -74,7 +66,7 @@ public class PackageBuilder {
     public static final String   DEFAULT_DATE_FORMAT    = "yyyy-MM-dd'T'HH:mm:ss";
     private static final String  URLBASE                = "/services/Soap/u/";
     public static final int      MAXITEMSINPACKAGE      = 10000;
-    public static final double   API_VERSION            = 44.0;
+    public static final double   API_VERSION            = 45.0;
     public static final boolean  INCLUDECHANGEDATA      = false;
     private static final boolean FILTERVERSIONLESSFLOWS = true;
 
@@ -96,7 +88,9 @@ public class PackageBuilder {
             "SocialPostEngagementLevel", "SocialPostReviewedStatus", "SolutionStatus", "TaskPriority", "TaskStatus",
             "TaskSubject", "TaskType",
             "WorkOrderLineItemStatus", "WorkOrderPriority", "WorkOrderStatus" };
-
+    // Logging
+    private final Logger logger        = Logger.getLogger(Logger.GLOBAL_LOGGER_NAME);
+    
     // Collections
     private final ArrayList<Pattern>  skipPatterns  = new ArrayList<>();
     private final HashSet<String>     existingTypes = new HashSet<>();
@@ -117,7 +111,6 @@ public class PackageBuilder {
     private String            dbFilename;
     private String            targetDir             = "";
     private String            metaSourceDownloadDir = "src";
-    private Loglevel          loglevel;
     private OperationMode     mode;
     private PartnerConnection srcPartnerConnection;
 
@@ -136,7 +129,14 @@ public class PackageBuilder {
     public void run() throws RemoteException, Exception {
 
         // set loglevel based on parameters
-        this.loglevel = ("verbose".equals(this.parameters.get("loglevel"))) ? Loglevel.NORMAL : Loglevel.BRIEF;
+        Level thisLogLevel = ("verbose".equals(this.parameters.get("loglevel"))) ? Level.FINE : Level.INFO;
+        this.logger.setLevel(thisLogLevel);
+        this.logger.setUseParentHandlers(false);
+        LogFormatter formatter = new LogFormatter();
+        ConsoleHandler handler = new ConsoleHandler();
+        handler.setFormatter(formatter);
+        this.logger.addHandler(handler);
+        
 
         // Check what to do based on parameters
         this.includeChangeData = this.isParamTrue(PackageBuilderCommandLine.INCLUDECHANGEDATA_LONGNAME);
@@ -195,8 +195,7 @@ public class PackageBuilder {
                 // no, we don't, finish file off, add to list, create new and
                 // add to that
 
-                this.log("Type " + mdType + ", won't fit into this file - #items: " + mdTypeSize + ".",
-                        Loglevel.NORMAL);
+                this.logger.log(Level.FINE,"Type " + mdType + ", won't fit into this file - #items: " + mdTypeSize + ".");
 
                 // put part of this type into this file
 
@@ -205,17 +204,15 @@ public class PackageBuilder {
                 currentFile.put(mdType, mdTypeListPartial);
                 mdTypeList.removeAll(mdTypeListPartial);
                 fileCount += mdTypeListPartial.size();
-                this.log(
+                this.logger.log(Level.FINE,
                         "Adding type: " + mdType + "(" + mdTypeListPartial.size() + " items) to file " + fileIndex
                                 + ", total count now: "
-                                + fileCount,
-                        Loglevel.NORMAL);
+                                + fileCount);
                 files.add(currentFile);
 
                 // finish and start new file
 
-                this.log("Finished composing file " + fileIndex + ", total count: " + fileCount + "items.",
-                        Loglevel.NORMAL);
+                this.logger.log(Level.FINE,"Finished composing file " + fileIndex + ", total count: " + fileCount + "items.");
                 currentFile = new HashMap<>();
                 fileCount = 0;
                 fileIndex++;
@@ -235,13 +232,11 @@ public class PackageBuilder {
                 files.add(currentFile);
                 currentFile = new HashMap<>();
                 mdTypeList.removeAll(mdTypeListPartial);
-                this.log(
+                this.logger.log(Level.FINE,
                         "Adding type: " + mdType + "(" + mdTypeListPartial.size() + " items) to file " + fileIndex
                                 + ", total count now: "
-                                + fileCount,
-                        Loglevel.NORMAL);
-                this.log("Finished composing file " + fileIndex + ", total count: " + fileCount + "items.",
-                        Loglevel.NORMAL);
+                                + fileCount);
+                this.logger.log(Level.FINE,"Finished composing file " + fileIndex + ", total count: " + fileCount + "items.");
                 fileCount = 0;
                 fileIndex++;
 
@@ -249,16 +244,15 @@ public class PackageBuilder {
 
             currentFile.put(mdType, mdTypeList);
             fileCount += mdTypeList.size();
-            this.log(
+            this.logger.log(Level.FINE,
                     "Adding type: " + mdType + "(" + mdTypeList.size() + " items) to file " + fileIndex
                             + ", total count now: "
-                            + fileCount,
-                    Loglevel.NORMAL);
+                            + fileCount);
         }
 
         // finish off any last file
         files.add(currentFile);
-        this.log("Finished composing file " + fileIndex + ", total count: " + fileCount + "items.", Loglevel.NORMAL);
+        this.logger.log(Level.FINE,"Finished composing file " + fileIndex + ", total count: " + fileCount + "items.");
 
         @SuppressWarnings("unchecked")
         HashMap<String, ArrayList<InventoryItem>>[] retval = new HashMap[files
@@ -308,9 +302,9 @@ public class PackageBuilder {
      * ArrayList<InventoryItem>>[] actualInventory) throws Exception { int
      * packageNumber = 1; for (HashMap<String, ArrayList<InventoryItem>>
      * inventory : actualInventory) {
-     * this.log("Asked to retrieve this package from org - will do so now.",
-     * Loglevel.BRIEF); OrgRetrieve myRetrieve = new
-     * OrgRetrieve(OrgRetrieve.Loglevel.VERBOSE);
+     * this.logger.log(Level.INFO,"Asked to retrieve this package from org - will do so now.",
+     * Level.INFO); OrgRetrieve myRetrieve = new
+     * OrgRetrieve(OrgRetrieve.Level.FINE);
      * myRetrieve.setMetadataConnection(srcMetadataConnection);
      * myRetrieve.setZipFile("mypackage" + packageNumber + ".zip");
      * myRetrieve.setInventoryToRetrieve(inventory);
@@ -326,7 +320,7 @@ public class PackageBuilder {
                 TimeUnit.MILLISECONDS.toMinutes(diff) - TimeUnit.HOURS.toMinutes(TimeUnit.MILLISECONDS.toHours(diff)),
                 TimeUnit.MILLISECONDS.toSeconds(diff)
                         - TimeUnit.MINUTES.toSeconds(TimeUnit.MILLISECONDS.toMinutes(diff)));
-        this.log("Duration: " + hms, Loglevel.NORMAL);
+        this.logger.log(Level.FINE,"Duration: " + hms);
     }
 
     private HashMap<String, InventoryItem> fetchMetadataType(final String metadataType)
@@ -343,7 +337,7 @@ public class PackageBuilder {
             final DescribeMetadataObject obj = this.describeMetadataObjectsMap.get(metadataType);
             if ((obj != null) && (obj.getInFolder() == true)) {
                 isFolder = true;
-                this.log(metadataType + " is stored in folders. Getting folder list.", Loglevel.VERBOSE);
+                this.logger.log(Level.INFO,metadataType + " is stored in folders. Getting folder list.", Level.FINE);
                 final ListMetadataQuery query = new ListMetadataQuery();
                 // stupid hack for emailtemplate folder name
                 String type;
@@ -395,8 +389,8 @@ public class PackageBuilder {
                 itemCount += srcMd.length;
                 // thisItemCount = srcMd.length;
                 if (folderName != null) {
-                    this.log("Processing folder: " + folderName + " " + " items: " + srcMd.length + "\tCurrent total: "
-                            + itemCount, Loglevel.NORMAL);
+                    this.logger.log(Level.FINE,"Processing folder: " + folderName + " " + " items: " + srcMd.length + "\tCurrent total: "
+                            + itemCount);
                     // fetch folders themselves
                     // packageMap.add(folderName);
                     final ArrayList<FileProperties> filenameList = new ArrayList<>();
@@ -437,7 +431,7 @@ public class PackageBuilder {
 
                 } else {
                     if (!isFolder) {
-                        this.log("No items of this type, skipping...", Loglevel.VERBOSE);
+                        this.logger.log(Level.INFO,"No items of this type, skipping...", Level.FINE);
                         break;
                     }
                     if (!folder.hasNext()) {
@@ -452,8 +446,8 @@ public class PackageBuilder {
 
         } catch (final ConnectionException ce) {
             // ce.printStackTrace();
-            this.log("\nException processing: " + metadataType, Loglevel.BRIEF);
-            this.log("Error: " + ce.getMessage(), Loglevel.BRIEF);
+            this.logger.log(Level.INFO,"\nException processing: " + metadataType);
+            this.logger.log(Level.INFO,"Error: " + ce.getMessage());
         }
 
         this.endTiming();
@@ -492,9 +486,9 @@ public class PackageBuilder {
         if (!Utils.checkIsDirectory(basedir)) {
             // log error and exit
 
-            this.log("Base directory parameter provided: " + basedir
+            this.logger.log(Level.INFO,"Base directory parameter provided: " + basedir
                     + " invalid or is not a directory, cannot continue.",
-                    Loglevel.BRIEF);
+                    Level.INFO);
             System.exit(1);
         }
 
@@ -522,7 +516,7 @@ public class PackageBuilder {
                 final int separatorLocation = s.indexOf(File.separator);
 
                 if (separatorLocation == -1) {
-                    this.log("No folder in: " + s + ",skipping...", Loglevel.VERBOSE);
+                    this.logger.log(Level.INFO,"No folder in: " + s + ",skipping...", Level.FINE);
                     continue;
                 }
 
@@ -549,9 +543,9 @@ public class PackageBuilder {
                 }
 
                 if (mdType == null) {
-                    this.log("Couldn't find type mapping for item : " + mdType + " : " + filename + ", original path: "
+                    this.logger.log(Level.INFO,"Couldn't find type mapping for item : " + mdType + " : " + filename + ", original path: "
                             + s
-                            + ",skipping...", Loglevel.BRIEF);
+                            + ",skipping...");
                     continue;
                 }
 
@@ -570,8 +564,7 @@ public class PackageBuilder {
                 if (filename.contains("/") && mdType.equals("AuraDefinitionBundle")) {
                     final String subFoldername = filename.substring(0, filename.indexOf("/"));
                     typeInventory.add(new InventoryItem(subFoldername, null));
-                    this.log("Added: " + mdType + " : " + subFoldername + ", to inventory, original path: " + s,
-                            Loglevel.NORMAL);
+                    this.logger.log(Level.FINE,"Added: " + mdType + " : " + subFoldername + ", to inventory, original path: "+s);
                     continue;
                 }
 
@@ -584,8 +577,7 @@ public class PackageBuilder {
                 }
 
                 typeInventory.add(new InventoryItem(filename, null));
-                this.log("Added: " + mdType + " : " + filename + ", to inventory, original path: " + s,
-                        Loglevel.NORMAL);
+                this.logger.log(Level.FINE,"Added: " + mdType + " : " + filename + ", to inventory, original path: " + s);
 
                 // convert myinventory to the right return type
 
@@ -631,8 +623,8 @@ public class PackageBuilder {
         final ArrayList<String> workToDo = new ArrayList<>(this.getTypesToFetch());
         Collections.sort(workToDo);
 
-        this.log("Will fetch: " + String.join(", ", workToDo) + " from: " + this.srcUrl, Loglevel.BRIEF);
-        this.log("Using user: " + this.srcUser + " skipping: " + this.skipItems, Loglevel.NORMAL);
+        this.logger.log(Level.INFO,"Will fetch: " + String.join(", ", workToDo) + " from: " + this.srcUrl);
+        this.logger.log(Level.FINE,"Using user: " + this.srcUser + " skipping: " + this.skipItems);
 
         System.out.println("target directory: " + this.targetDir);
 
@@ -643,13 +635,13 @@ public class PackageBuilder {
         while (i.hasNext()) {
             counter++;
             final String mdType = i.next();
-            if (this.loglevel.getLevel() > Loglevel.BRIEF.getLevel()) {
-                this.log("*********************************************", Loglevel.NORMAL);
-                this.log("Processing type " + counter + " out of " + workToDo.size() + ": " + mdType, Loglevel.NORMAL);
-                this.log("*********************************************", Loglevel.NORMAL);
-            } else if (this.loglevel == Loglevel.BRIEF) {
-                this.logPartialLine("Processing type " + counter + " out of " + workToDo.size() + ": " + mdType,
-                        Loglevel.BRIEF);
+            if (this.logger.getLevel() == Level.INFO) {
+                this.logger.log(Level.INFO,"Processing type " + counter + " out of " + workToDo.size() + ": " + mdType);       
+            } else {
+                this.logger.log(Level.FINE,"*********************************************");
+                this.logger.log(Level.FINE,"Processing type " + counter + " out of " + workToDo.size() + ": " + mdType);
+                this.logger.log(Level.FINE,"*********************************************");
+
             }
 
             final ArrayList<InventoryItem> mdTypeItemList = new ArrayList<>(
@@ -657,12 +649,12 @@ public class PackageBuilder {
             Collections.sort(mdTypeItemList, (o1, o2) -> o1.itemName.compareTo(o2.itemName));
             inventory.put(mdType, mdTypeItemList);
 
-            if (this.loglevel.getLevel() > Loglevel.BRIEF.getLevel()) {
-                this.log("---------------------------------------------", Loglevel.NORMAL);
-                this.log("Finished processing: " + mdType, Loglevel.NORMAL);
-                this.log("---------------------------------------------", Loglevel.NORMAL);
-            } else if (this.loglevel == Loglevel.BRIEF) {
-                this.log(" items: " + mdTypeItemList.size(), Loglevel.BRIEF);
+            if (this.logger.getLevel() == Level.INFO) {
+                this.logger.log(Level.INFO," items: " + mdTypeItemList.size());
+            } else {
+                this.logger.log(Level.FINE,"---------------------------------------------");
+                this.logger.log(Level.FINE,"Finished processing: " + mdType);
+                this.logger.log(Level.FINE,"---------------------------------------------");
             }
         }
 
@@ -779,29 +771,32 @@ public class PackageBuilder {
             allPersisters.add(pfp);
         }
 
-        List<Future<PersistResult>> persistResult = WORKER_THREAD_POOL.invokeAll(allPersisters);
-        WORKER_THREAD_POOL.awaitTermination(30, TimeUnit.MINUTES);
-        
-        persistResult.forEach(prf -> {
-            PersistResult pr;
+       WORKER_THREAD_POOL.invokeAll(allPersisters)
+       .stream()
+       .map(future -> {
+           String result = null;
             try {
-                pr = prf.get();
-                this.log("Completion of" + pr.getName() + ": "+ String.valueOf(pr.getStatus()),Loglevel.BRIEF);
+                PersistResult pr = future.get();
+                result = "Completion of " + pr.getName() + ": "+ String.valueOf(pr.getStatus());
+                
             } catch (InterruptedException | ExecutionException e) {
                 e.printStackTrace();
             }
+            return result;
            
-        });
+        })
+       .forEach(System.out::println);
+        
+        WORKER_THREAD_POOL.awaitTermination(10, TimeUnit.SECONDS);
 
         final ArrayList<String> typesFound = new ArrayList<>(this.existingTypes);
         Collections.sort(typesFound);
 
-        this.log("Types found in org: " + typesFound.toString(), Loglevel.BRIEF);
+        this.logger.log(Level.INFO,"Types found in org: " + typesFound.toString());
 
-        this.log("Total items in package.xml: " + itemCount, Loglevel.BRIEF);
-        this.log("Total items skipped: " + skipCount
-                + " (excludes count of items in type where entire type was skipped)",
-                Loglevel.NORMAL);
+        this.logger.log(Level.INFO,"Total items in package.xml: " + itemCount);
+        this.logger.log(Level.FINE,"Total items skipped: " + skipCount
+                + " (excludes count of items in type where entire type was skipped)");
 
         return files;
 
@@ -856,7 +851,7 @@ public class PackageBuilder {
             }
         } else {
             // no directions on what to fetch - go get everything
-            this.log("No metadataitems (-mi) parameter found, will inventory the whole org", Loglevel.BRIEF);
+            this.logger.log(Level.INFO,"No metadataitems (-mi) parameter found, will inventory the whole org");
 
             for (final String obj : this.describeMetadataObjectsMap.keySet()) {
                 typesToFetch.add(obj.trim());
@@ -890,8 +885,8 @@ public class PackageBuilder {
 
                 final Matcher m = p.matcher(mdTypeFullName);
                 if (m.matches()) {
-                    this.log("Skip pattern: " + p.pattern() + " matches the metadata type: " + mdTypeFullName
-                            + ", entire type will be skipped.", Loglevel.NORMAL);
+                    this.logger.log(Level.FINE,"Skip pattern: " + p.pattern() + " matches the metadata type: " + mdTypeFullName
+                            + ", entire type will be skipped.");
 
                     // remove the whole key from the file
 
@@ -910,8 +905,8 @@ public class PackageBuilder {
                 for (final Pattern p : this.skipPatterns) {
                     final Matcher m = p.matcher(mdTypeFullName);
                     if (m.matches()) {
-                        this.log("Skip pattern: " + p.pattern() + " matches the metadata item: " + mdTypeFullName
-                                + ", item will be skipped.", Loglevel.NORMAL);
+                        this.logger.log(Level.FINE,"Skip pattern: " + p.pattern() + " matches the metadata item: " + mdTypeFullName
+                                + ", item will be skipped.");
                         items.remove(i);
                         skipCount++;
                     }
@@ -925,17 +920,6 @@ public class PackageBuilder {
         return "true".equals(this.parameters.get(paramName));
     }
 
-    private void log(final String logText, final Loglevel level) {
-        if ((this.loglevel == null) || (level.getLevel() <= this.loglevel.getLevel())) {
-            System.out.println(logText);
-        }
-    }
-
-    private void logPartialLine(final String logText, final Loglevel level) {
-        if (level.getLevel() <= this.loglevel.getLevel()) {
-            System.out.print(logText);
-        }
-    }
 
     private void populateUserEmails(final HashMap<String, ArrayList<InventoryItem>> myFile) throws ConnectionException {
 
@@ -967,8 +951,8 @@ public class PackageBuilder {
 
         final String query = queryStart + queryMid + queryEnd;
 
-        this.log("Looking for emails for " + userIDs.size() + " users.", Loglevel.BRIEF);
-        this.log("Query: " + query, Loglevel.NORMAL);
+        this.logger.log(Level.INFO,"Looking for emails for " + userIDs.size() + " users.");
+        this.logger.log(Level.FINE, "Query: " + query);
 
         // run the query
 
@@ -1019,6 +1003,8 @@ public class PackageBuilder {
         this.timeStart = System.currentTimeMillis();
     }
 
+    
+    @SuppressWarnings("unused")
     private void updateDatabase(final HashMap<String, ArrayList<InventoryItem>> inventory) {
         // construct org identified
         final String orgId = this.getOrgIdentifier();
