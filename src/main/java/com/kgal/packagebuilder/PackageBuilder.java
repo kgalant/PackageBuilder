@@ -11,7 +11,6 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
@@ -112,11 +111,11 @@ public class PackageBuilder {
     private OperationMode     mode;
     private PartnerConnection srcPartnerConnection;
 
-    private boolean includeChangeData    = false;
-    private boolean downloadData         = false;
-    private boolean gitCommit            = false;
-    private boolean simulateDataDownload = false;
-    private int     maxItemsInPackage    = PackageBuilder.MAXITEMSINPACKAGE;
+    private boolean includeChangeData        = false;
+    private boolean downloadData             = false;
+    private boolean gitCommit                = false;
+    private boolean simulateDataDownload     = false;
+    private int     maxItemsInRegularPackage = PackageBuilder.MAXITEMSINPACKAGE;
 
     // Constructor that gets all settings as map
     public PackageBuilder(final Map<String, String> parameters) {
@@ -141,7 +140,8 @@ public class PackageBuilder {
         this.gitCommit = this.isParamTrue(PackageBuilderCommandLine.GITCOMMIT_LONGNAME);
         this.simulateDataDownload = this.isParamTrue(PackageBuilderCommandLine.LOCALONLY_LONGNAME);
 
-        this.maxItemsInPackage = Integer.valueOf(this.parameters.get(PackageBuilderCommandLine.MAXITEMS_LONGNAME));
+        this.maxItemsInRegularPackage = Integer
+                .valueOf(this.parameters.get(PackageBuilderCommandLine.MAXITEMS_LONGNAME));
 
         // initialize inventory - it will be used in both types of operations
         // (connect to org or run local)
@@ -188,7 +188,7 @@ public class PackageBuilder {
             final int mdTypeSize = mdTypeList.size();
 
             // do we have room in this file for the
-            if ((fileCount + mdTypeSize) > this.maxItemsInPackage) {
+            if ((fileCount + mdTypeSize) > this.maxItemsInPackage(mdType)) {
                 // no, we don't, finish file off, add to list, create new and
                 // add to that
 
@@ -198,7 +198,7 @@ public class PackageBuilder {
                 // put part of this type into this file
 
                 final ArrayList<InventoryItem> mdTypeListPartial = new ArrayList<>(
-                        mdTypeList.subList(0, this.maxItemsInPackage - fileCount));
+                        mdTypeList.subList(0, this.maxItemsInPackage(mdType) - fileCount));
                 currentFile.put(mdType, mdTypeListPartial);
                 mdTypeList.removeAll(mdTypeListPartial);
                 fileCount += mdTypeListPartial.size();
@@ -220,12 +220,12 @@ public class PackageBuilder {
             // but need to check that this type isn't more than maxItems
             // if yes, then split this type into multiple pieces
 
-            while (mdTypeList.size() > this.maxItemsInPackage) {
+            while (mdTypeList.size() > this.maxItemsInPackage(mdType)) {
                 // too much even for a single file just with that,
                 // break up into multiple files
 
                 final ArrayList<InventoryItem> mdTypeListPartial = new ArrayList<>(
-                        mdTypeList.subList(0, this.maxItemsInPackage));
+                        mdTypeList.subList(0, this.maxItemsInPackage(mdType)));
                 currentFile.put(mdType, mdTypeListPartial);
                 fileCount += mdTypeListPartial.size();
                 files.add(currentFile);
@@ -337,7 +337,8 @@ public class PackageBuilder {
             final DescribeMetadataObject obj = this.describeMetadataObjectsMap.get(metadataType);
             if ((obj != null) && (obj.getInFolder() == true)) {
                 isFolder = true;
-                this.logger.log(Level.INFO, metadataType + " is stored in folders. Getting folder list. \\", Level.FINE);
+                this.logger.log(Level.INFO, metadataType + " is stored in folders. Getting folder list. \\",
+                        Level.FINE);
                 final ListMetadataQuery query = new ListMetadataQuery();
                 // stupid hack for emailtemplate folder name
                 String type;
@@ -641,7 +642,7 @@ public class PackageBuilder {
             final String mdType = i.next();
             if (this.logger.getLevel() == Level.INFO) {
                 this.logger.log(Level.INFO,
-                        "Processing type " + counter + " out of " + workToDo.size() + ": " + mdType+"\\");
+                        "Processing type " + counter + " out of " + workToDo.size() + ": " + mdType + "\\");
             } else {
                 this.logger.log(Level.FINE, "*********************************************");
                 this.logger.log(Level.FINE,
@@ -759,7 +760,19 @@ public class PackageBuilder {
         final int totalFiles = files.length;
         final ExecutorService WORKER_THREAD_POOL = Executors.newFixedThreadPool(PackageBuilder.CONCURRENT_THREADS);
 
+
         final Collection<PackageAndFilePersister> allPersisters = new ArrayList<>();
+
+        // Write out a complete version of the package,xml for later mdapi:convert operations
+        final PackageAndFilePersister completePackageXML = new PackageAndFilePersister(this.myApiVersion,
+                this.targetDir,
+                this.metaSourceDownloadDir,
+                myFile,
+                "packageComplete.xml", 9999,
+                false, false, this.srcMetadataConnection);
+        allPersisters.add(completePackageXML);
+
+        // Add all XML Files to the download queue
         for (int i = 0; i < totalFiles; i++) {
             final String curFileName = (i == 0)
                     ? "package.xml"
@@ -784,8 +797,8 @@ public class PackageBuilder {
                 result = "Completion of " + pr.getName() + ": " +
                         String.valueOf(pr.getStatus());
 
-            } catch (InterruptedException | ExecutionException e) {
-                e.printStackTrace();
+            } catch (Exception e) {
+                this.logger.log(Level.SEVERE, e.getMessage());
                 result = e.getMessage();
             }
             return result;
@@ -1049,6 +1062,10 @@ public class PackageBuilder {
 
         // output any new records to screen
 
+    }
+
+    private int maxItemsInPackage(final String itemType) {
+        return ("Document".equalsIgnoreCase(itemType)) ? 50 : this.maxItemsInRegularPackage;
     }
 
 }
