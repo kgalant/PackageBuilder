@@ -32,9 +32,9 @@ import java.util.logging.LogRecord;
  *
  */
 public class LogFormatter extends Formatter {
-    
-    private final DateFormat df = new SimpleDateFormat("hh:mm:ss.SSS");
 
+    private final DateFormat df         = new SimpleDateFormat("hh:mm:ss.SSS");
+    private boolean          appendLine = false;
 
     /**
      * @see java.util.logging.Formatter#format(java.util.logging.LogRecord)
@@ -42,11 +42,19 @@ public class LogFormatter extends Formatter {
     @Override
     public String format(LogRecord record) {
         StringBuilder builder = new StringBuilder(1000);
-        builder.append(df.format(new Date(record.getMillis()))).append(" - ");
-        builder.append("[").append(record.getLevel()).append("] - ");
-        builder.append(formatMessage(record));
-        builder.append("\n");
+        String recordMessage = formatMessage(record);
+        if (!this.appendLine) {
+            builder.append(df.format(new Date(record.getMillis()))).append(" - ");
+            builder.append("[").append(record.getLevel()).append("] - ");
+        }
+        if (recordMessage.endsWith("\\")) {
+            builder.append(recordMessage.substring(0, recordMessage.length() - 1));
+            this.appendLine = true;
+        } else {
+            builder.append(recordMessage);
+            builder.append("\n");
+            this.appendLine = false;
+        }
         return builder.toString();
     }
-
 }

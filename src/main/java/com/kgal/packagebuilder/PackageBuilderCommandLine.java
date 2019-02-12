@@ -90,7 +90,8 @@ public class PackageBuilderCommandLine {
             pb.run();
             System.out.println("Done");
         }
-
+        System.exit(0);
+        
     }
 
     private final Map<String, String> parameters = new HashMap<>();
