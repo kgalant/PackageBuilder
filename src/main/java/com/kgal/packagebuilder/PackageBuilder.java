@@ -3,8 +3,10 @@ package com.kgal.packagebuilder;
 import java.io.File;
 import java.io.IOException;
 import java.rmi.RemoteException;
+import java.sql.Date;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Calendar;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -910,12 +912,38 @@ public class PackageBuilder {
 		initializePatternArray(this.parameters.get(PackageBuilderCommandLine.INCLUDEEMAIL_LONGNAME), this.includeEmail);
 		initializePatternArray(this.parameters.get(PackageBuilderCommandLine.SKIPUSERNAME_LONGNAME), this.skipUsername);
 		initializePatternArray(this.parameters.get(PackageBuilderCommandLine.INCLUDEUSERNAME_LONGNAME), this.includeUsername);
+		
+		// initialize date ranges, if any
+		
+		String fromDateString = this.parameters.get(PackageBuilderCommandLine.FROMDATE_LONGNAME);
+		String toDateString = this.parameters.get(PackageBuilderCommandLine.TODATE_LONGNAME);
+		Date fromDate = null;
+		Date toDate = null;
+		
+		if (fromDateString != null && fromDateString.length() >= 8) {
+			try {
+				fromDate = Date.valueOf(fromDateString);
+			} 
+			catch (IllegalArgumentException e) {
+				this.log("FromDate value: " + fromDateString + " cannot be parsed to a proper date. Required format: YYYY-[M]M-[D]D. Continuing without FromDate parameter.", Loglevel.BRIEF);
+			}
+		}
+		
+		if (toDateString != null && toDateString.length() >= 8) {
+			try {
+				toDate = Date.valueOf(toDateString);
+			} 
+			catch (IllegalArgumentException e) {
+				this.log("ToDate value: " + toDateString + " cannot be parsed to a proper date. Required format: YYYY-[M]M-[D]D. Continuing without ToDate parameter.", Loglevel.BRIEF);
+			}
+		}
 
 		for (final String mdType : myFile.keySet()) {
 			final ArrayList<InventoryItem> items = myFile.get(mdType);
 			for (Iterator<InventoryItem> i = items.iterator(); i.hasNext();) {
 				final InventoryItem mdItem = i.next();
 				boolean itemSkipped = false;
+				
 				for (Pattern p :  this.skipPatterns) {
 					if (checkItemAgainstPattern(p, mdItem, mdType, myFile.get(mdType), true, PatternField.ITEMNAME) == 1) {
 						// item was skipped
@@ -974,6 +1002,31 @@ public class PackageBuilder {
 						}
 					}
 				}
+				
+				// check against dates now, if defined
+				if (!itemSkipped) {
+					if (fromDate != null) {
+						Calendar itemLastModified = mdItem.getLastModifiedDate();
+						if (fromDate.after(itemLastModified.getTime())) {
+							skipCount++;
+							itemSkipped = true; 
+							this.log("Item: " + mdItem.getFullName() + " last modified (" + itemLastModified + ") before provided FromDate (" 
+									+ fromDateString + ", item will be skipped.", Loglevel.NORMAL);
+						}
+					}
+				}
+				if (!itemSkipped) {
+					if (toDate != null) {
+						Calendar itemLastModified = mdItem.getLastModifiedDate();
+						if (toDate.before(itemLastModified.getTime())) {
+							skipCount++;
+							itemSkipped = true; 
+							this.log("Item: " + mdItem.getFullName() + " last modified (" + itemLastModified + ") after provided ToDate (" 
+									+ toDateString + ", item will be skipped.", Loglevel.NORMAL);
+						}
+					}
+				}
+
 				if (itemSkipped) {
 					i.remove();
 				}

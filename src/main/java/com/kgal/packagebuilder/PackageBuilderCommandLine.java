@@ -84,6 +84,10 @@ public class PackageBuilderCommandLine {
 	public static final String GITCOMMIT_LONGNAME = "gitcommit";
 	public static final String MAXITEMS = "mx";
 	public static final String MAXITEMS_LONGNAME = "maxitems";
+	public static final String FROMDATE = "fd";
+	public static final String FROMDATE_LONGNAME = "fromdate";
+	public static final String TODATE = "td";
+	public static final String TODATE_LONGNAME = "todate";
 	
     /**
      * @param args
@@ -172,6 +176,8 @@ public class PackageBuilderCommandLine {
                     this.addParameterFromProperty(props, METADATATARGETDIR_LONGNAME);
                     this.addParameterFromProperty(props, INCLUDECHANGEDATA_LONGNAME);
                     this.addParameterFromProperty(props, MAXITEMS_LONGNAME);
+                    this.addParameterFromProperty(props, FROMDATE_LONGNAME);
+                    this.addParameterFromProperty(props, TODATE_LONGNAME);
 
                     // adding handling for building a package from a directory
                     this.addParameterFromProperty(props, DESTINATION_LONGNAME);
@@ -193,6 +199,8 @@ public class PackageBuilderCommandLine {
             this.addCmdlineParameter(line, DESTINATION, DESTINATION_LONGNAME);
             this.addCmdlineParameter(line, METADATATARGETDIR, METADATATARGETDIR_LONGNAME);
             this.addCmdlineParameter(line, MAXITEMS, MAXITEMS_LONGNAME);
+            this.addCmdlineParameter(line, FROMDATE, FROMDATE_LONGNAME);
+            this.addCmdlineParameter(line, TODATE, TODATE_LONGNAME);
 
             // adding handling for building a package from a directory
             this.addCmdlineParameter(line, BASEDIRECTORY, BASEDIRECTORY_LONGNAME);
@@ -376,6 +384,18 @@ public class PackageBuilderCommandLine {
         
         this.options.addOption(Option.builder(DESTINATION).longOpt(DESTINATION_LONGNAME)
                 .desc("directory where the generated package.xml will be written")
+                .hasArg()
+                .build());
+        
+        // handling for filtering based on date
+        
+        this.options.addOption(Option.builder(FROMDATE).longOpt(FROMDATE_LONGNAME)
+                .desc("only items last modified on or after this date (YYYY-MM-DD) will be included (in connecting user's local time zone)")
+                .hasArg()
+                .build());
+        
+        this.options.addOption(Option.builder(TODATE).longOpt(TODATE_LONGNAME)
+                .desc("only items last modified on or before this date (YYYY-MM-DD) will be included (in connecting user's local time zone)")
                 .hasArg()
                 .build());
 
