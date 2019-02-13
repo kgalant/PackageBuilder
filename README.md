@@ -27,8 +27,6 @@ server URL for the org (https://login.salesforce.com)
 api version to use, will default to 38.0
 * -mi,--metadataitems `<arg>`   
 metadata items to fetch (commaseparated list of metadata types in package.xml naming). If this parameter is not provided, PackageBuilder will query the org and inventory everything a Metadata Describe returns to it.
-* -sp,--skippatterns `<arg>`    
-patterns to skip when fetching
 * -d,--destination `<arg>`    
 directory where the generated package.xml will be written
 * -b,--basedirectory `<arg>`    
@@ -39,6 +37,33 @@ output verbose logging instead of just core output
 include data on who last changed the item directly in the members tag of every item of the package.xml
 * -mx,--maxitems `<arg>`    
 max number of items to put into a single package.xml (10000 is current max enforced by SF platform, for API 33 and higher, 5000 before)
+
+#### Filtering what goes in the package
+
+* -sp,--skippatterns `<arg>`    
+name patterns to skip when fetching. 
+* -ip,--includepatterns `<arg>`    
+name patterns to skip when fetching
+
+When filtering by item name, the PackageBuilder will create an artificial name by prepending the metadata type to the actual item name, so e.g. the Opportunity field My_field__c will be represented internally as `CustomField:Opportunity.My_field__c`. This enables writing more precise patterns like `CustomField:Opportunity.*` which will filter all custom fields on the Opportunity object, as opposed to the pattern `.*Opportunity.*` which would match anything and everything associated with the Opportunity object and beyond (e.g. an Account field called Parent_Opportunity__c).
+
+Multiple patterns can be provided separated by commas. Unpredictable behavior if your pattern includes commas.
+
+* -se,--skipemail `<arg>`    
+email patterns to skip when fetching. 
+* -ie,--includeemail `<arg>`    
+email patterns to skip when fetching
+* -su,--skipusername `<arg>`    
+email patterns to skip when fetching. 
+* -iu,--includeusername `<arg>`    
+email patterns to skip when fetching
+
+This filter works against the email/name of the user who is the last to have modified a given item.
+
+* -fd,--fromdate `<arg>`    
+date (YYYY-[M]M-[D]D). All items modified on or after this date (and respecting the td flag) will be included in the result
+* -td,--todate `<arg>`    
+date (YYYY-[M]M-[D]D). All items modified before or on this date (and respecting the fd flag) will be included in the result
 
 All parameters can be provided in parameter files specified with the -o parameter. More than one file can be provided (as in the example below, where one file would define what to fetch, skippatterns, etc., and the other where to fetch from). If any parameters are provided both in files and on the command line, the command line ones will be used. 
 
@@ -65,12 +90,6 @@ targetdirectory=src
 ###### Yes, I know that the property file parameters should be better aligned to the longnames of the commandline parameters. Coming in a future version!
 
 ---
-
-#### Use of skipItems parameter
-what to not put into the package.xml (omit) - regular expressions that will be matched against a string of {componentType}:{componentName}, so e.g. ApexClass:MySuperClass. 
-I.e. by entering `skipItems=ApexClass.*` all classes will be omitted, while `skipItems=ApexClass:.*Super.*` will omit the classes MySuperClass, SuperClass2 and MyOtherSuperClass, but leave MyClass in the package.xml
-can also be used without the component type in front, e.g. `skipItems=.*Super.*` will skip the classes MySuperClass, SuperClass2 and MyOtherSuperClass as well as the object MySuperCustomObject, etc.
-Multiple patterns can be provided separated by commas.
 
 #### Example: 
 ```
