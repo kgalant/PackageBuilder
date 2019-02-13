@@ -58,6 +58,16 @@ public class PackageBuilderCommandLine {
 	public static final String SERVERURL_LONGNAME = "serverurl";
 	public static final String SKIPPATTERNS = "sp";
 	public static final String SKIPPATTERNS_LONGNAME = "skippatterns";
+	public static final String INCLUDEPATTERNS = "ip";
+	public static final String INCLUDEPATTERNS_LONGNAME = "includepatterns";
+	public static final String SKIPEMAIL = "se";
+	public static final String SKIPEMAIL_LONGNAME = "skipemail";
+	public static final String INCLUDEEMAIL = "ie";
+	public static final String INCLUDEEMAIL_LONGNAME = "includeemail";
+	public static final String SKIPUSERNAME = "su";
+	public static final String SKIPUSERNAME_LONGNAME = "skipusername";
+	public static final String INCLUDEUSERNAME = "iu";
+	public static final String INCLUDEUSERNAME_LONGNAME = "includeusername";
 	public static final String DESTINATION = "d";
 	public static final String DESTINATION_LONGNAME = "destination";
 	public static final String BASEDIRECTORY = "b";
@@ -153,6 +163,11 @@ public class PackageBuilderCommandLine {
                     this.addParameterFromProperty(props, "sf.username");
                     this.addParameterFromProperty(props, "sf.password");
                     this.addParameterFromProperty(props, SKIPPATTERNS_LONGNAME);
+                    this.addParameterFromProperty(props, INCLUDEPATTERNS_LONGNAME);
+                    this.addParameterFromProperty(props, SKIPEMAIL_LONGNAME);
+                    this.addParameterFromProperty(props, INCLUDEEMAIL_LONGNAME);
+                    this.addParameterFromProperty(props, SKIPUSERNAME_LONGNAME);
+                    this.addParameterFromProperty(props, INCLUDEUSERNAME_LONGNAME);
                     this.addParameterFromProperty(props, BASEDIRECTORY_LONGNAME);
                     this.addParameterFromProperty(props, METADATATARGETDIR_LONGNAME);
                     this.addParameterFromProperty(props, INCLUDECHANGEDATA_LONGNAME);
@@ -170,6 +185,11 @@ public class PackageBuilderCommandLine {
             this.addCmdlineParameter(line, PASSWORD, PASSWORD_LONGNAME);
             this.addCmdlineParameter(line, METADATAITEMS, METADATAITEMS_LONGNAME);
             this.addCmdlineParameter(line, SKIPPATTERNS, SKIPPATTERNS_LONGNAME);
+            this.addCmdlineParameter(line, INCLUDEPATTERNS, INCLUDEPATTERNS_LONGNAME);
+            this.addCmdlineParameter(line, SKIPEMAIL, SKIPEMAIL_LONGNAME);
+            this.addCmdlineParameter(line, INCLUDEEMAIL, INCLUDEEMAIL_LONGNAME);
+            this.addCmdlineParameter(line, SKIPUSERNAME, SKIPUSERNAME_LONGNAME);
+            this.addCmdlineParameter(line, INCLUDEUSERNAME, INCLUDEUSERNAME_LONGNAME);
             this.addCmdlineParameter(line, DESTINATION, DESTINATION_LONGNAME);
             this.addCmdlineParameter(line, METADATATARGETDIR, METADATATARGETDIR_LONGNAME);
             this.addCmdlineParameter(line, MAXITEMS, MAXITEMS_LONGNAME);
@@ -324,9 +344,36 @@ public class PackageBuilderCommandLine {
                 .hasArg()
                 .build());
         this.options.addOption(Option.builder(SKIPPATTERNS).longOpt(SKIPPATTERNS_LONGNAME)
-                .desc("patterns to skip when fetching")
+                .desc("patterns to skip when fetching. Will override include flags (pattern, username, email). Comma-separated java-style regexps.")
                 .hasArg()
                 .build());
+        
+        // handling of the various skip patterns
+        
+        this.options.addOption(Option.builder(INCLUDEPATTERNS).longOpt(INCLUDEPATTERNS_LONGNAME)
+                .desc("patterns to include when fetching. Will be overridden by any exclude flags (pattern, username, email). Comma-separated java-style regexps.")
+                .hasArg()
+                .build());
+        
+        this.options.addOption(Option.builder(SKIPUSERNAME).longOpt(SKIPUSERNAME_LONGNAME)
+                .desc("user name(s) to skip when fetching. Will override include flags (pattern, username, email). Comma-separated java-style regexps.")
+                .hasArg()
+                .build());       
+        this.options.addOption(Option.builder(INCLUDEUSERNAME).longOpt(INCLUDEUSERNAME_LONGNAME)
+                .desc("user name(s) to include when fetching. Will be overridden by any exclude flags (pattern, username, email). Comma-separated java-style regexps.")
+                .hasArg()
+                .build());
+        
+        this.options.addOption(Option.builder(SKIPEMAIL).longOpt(SKIPEMAIL_LONGNAME)
+                .desc("email(s) to skip when fetching. Will override include flags (pattern, username, email). Comma-separated java-style regexps.")
+                .hasArg()
+                .build());       
+        this.options.addOption(Option.builder(INCLUDEEMAIL).longOpt(INCLUDEEMAIL_LONGNAME)
+                .desc("email(s) to include when fetching. Will be overridden by any exclude flags (pattern, username, email). Comma-separated java-style regexps.")
+                .hasArg()
+                .build());
+        
+        
         this.options.addOption(Option.builder(DESTINATION).longOpt(DESTINATION_LONGNAME)
                 .desc("directory where the generated package.xml will be written")
                 .hasArg()
@@ -371,6 +418,7 @@ public class PackageBuilderCommandLine {
                 .desc("max number of items to put in a single package xml (defaults to 10000 if not provided)")
                 .hasArg()
                 .build());
+
 
     }
 
