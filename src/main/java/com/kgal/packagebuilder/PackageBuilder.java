@@ -1007,7 +1007,7 @@ public class PackageBuilder {
 				if (!itemSkipped) {
 					if (fromDate != null) {
 						Calendar itemLastModified = mdItem.getLastModifiedDate();
-						if (fromDate.after(itemLastModified.getTime())) {
+						if (itemLastModified == null || fromDate.after(itemLastModified.getTime())) {
 							skipCount++;
 							itemSkipped = true; 
 							this.log("Item: " + mdItem.getFullName() + " last modified (" + itemLastModified + ") before provided FromDate (" 
@@ -1018,7 +1018,7 @@ public class PackageBuilder {
 				if (!itemSkipped) {
 					if (toDate != null) {
 						Calendar itemLastModified = mdItem.getLastModifiedDate();
-						if (toDate.before(itemLastModified.getTime())) {
+						if (itemLastModified == null || toDate.before(itemLastModified.getTime())) {
 							skipCount++;
 							itemSkipped = true; 
 							this.log("Item: " + mdItem.getFullName() + " last modified (" + itemLastModified + ") after provided ToDate (" 
