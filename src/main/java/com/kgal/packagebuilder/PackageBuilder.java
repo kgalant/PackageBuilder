@@ -89,7 +89,7 @@ public class PackageBuilder {
 	private static final String  DEFAULT_DATE_FORMAT    = "yyyy-MM-dd'T'HH:mm:ss";
 	private static final String  URLBASE                = "/services/Soap/u/";
 	public static final int     MAXITEMSINPACKAGE      = 10000;
-	public static final double   API_VERSION            = 44.0;
+	public static final double   API_VERSION            = 45.0;
 	public static final boolean  INCLUDECHANGEDATA      = false;
 	private static final boolean FILTERVERSIONLESSFLOWS = true;
 
@@ -781,7 +781,7 @@ public class PackageBuilder {
 
 
 		for (int i = 1; i <= files.length; i++) {
-			if (i == 0) {
+			if (files.length == 1) {
 				this.writePackageXmlFile(files[i-1], "package.xml", i);
 			} else {
 				this.writePackageXmlFile(files[i-1], "package." + i + ".xml", i);
@@ -793,8 +793,8 @@ public class PackageBuilder {
 
 		this.log("Types found in org: " + typesFound.toString(), Loglevel.BRIEF);
 
-		this.log("Total items in package.xml: " + itemCount, Loglevel.BRIEF);
-		this.log("Total items skipped: " + skipCount
+		this.log("Total items in package.xml: " + (itemCount - skipCount), Loglevel.BRIEF);
+		this.log("Total items overall: " + itemCount + ", items skipped: " + skipCount
 				+ " (excludes count of items in type where entire type was skipped)",
 				Loglevel.NORMAL);
 
@@ -1239,6 +1239,9 @@ public class PackageBuilder {
 		Collections.sort(mdTypes);
 
 		for (final String mdType : mdTypes) {
+			if (theMap.get(mdType).size() == 0) {
+				continue;
+			}
 			packageXML.openTag("types");
 			packageXML.addTag("name", mdType);
 
