@@ -111,6 +111,13 @@ public class PackageBuilder {
 			"SocialPostEngagementLevel", "SocialPostReviewedStatus", "SolutionStatus", "TaskPriority", "TaskStatus",
 			"TaskSubject", "TaskType",
 			"WorkOrderLineItemStatus", "WorkOrderPriority", "WorkOrderStatus" };
+	
+	private static final String[] ADDITIONALTYPESTOADD = new String[] { "CustomLabel",
+			"BusinessProcess","CompactLayout","CustomField","FieldSet","Index","ListView","NamedFilter","RecordType","SharingReason","ValidationRule","WebLink", // CustomObject components
+			"WorkflowActionReference","WorkflowAlert","WorkflowEmailRecipient","WorkflowFieldUpdate","WorkflowFlowAction","WorkflowFlowActionParameter", 		// Workflow components
+			"WorkflowKnowledgePublish","WorkflowOutboundMessage","WorkflowRule","WorkflowTask","WorkflowTimeTrigger"											// Workflow components
+			
+	};
 
 	// Collections
 	private final ArrayList<Pattern>  skipPatterns  = new ArrayList<>();
@@ -856,6 +863,13 @@ public class PackageBuilder {
 			for (final String obj : this.describeMetadataObjectsMap.keySet()) {
 				typesToFetch.add(obj.trim());
 			}
+			
+			// now add the list of types to be added manually
+			
+			for (String manualType : ADDITIONALTYPESTOADD) {
+				typesToFetch.add(manualType.trim());
+			}
+			
 		}
 		return typesToFetch;
 	}
@@ -903,6 +917,8 @@ public class PackageBuilder {
 	private int handleSkippingItems(final HashMap<String, ArrayList<InventoryItem>> myFile) {
 
 		int skipCount = 0;
+		
+		SimpleDateFormat format1 = new SimpleDateFormat("yyyy-MM-dd");
 
 		// Initiate patterns array
 
@@ -993,7 +1009,7 @@ public class PackageBuilder {
 					}
 				}
 				if (!itemSkipped) {
-					for (Pattern p :  this.skipEmail) {
+					for (Pattern p :  this.includeEmail) {
 						if (checkItemAgainstPattern(p, mdItem, mdType, myFile.get(mdType), false, PatternField.EMAIL) == 1) {
 							// item was skipped
 							skipCount++;
@@ -1010,8 +1026,8 @@ public class PackageBuilder {
 						if (itemLastModified == null || fromDate.after(itemLastModified.getTime())) {
 							skipCount++;
 							itemSkipped = true; 
-							this.log("Item: " + mdItem.getFullName() + " last modified (" + itemLastModified + ") before provided FromDate (" 
-									+ fromDateString + ", item will be skipped.", Loglevel.NORMAL);
+							this.log("Item: " + mdItem.getFullName() + " last modified (" + (itemLastModified == null || itemLastModified.getTimeInMillis() == 0 ? "null" : format1.format(itemLastModified.getTime())) + ") before provided FromDate (" 
+									+ fromDateString + "), item will be skipped.", Loglevel.NORMAL);
 						}
 					}
 				}
@@ -1021,8 +1037,8 @@ public class PackageBuilder {
 						if (itemLastModified == null || toDate.before(itemLastModified.getTime())) {
 							skipCount++;
 							itemSkipped = true; 
-							this.log("Item: " + mdItem.getFullName() + " last modified (" + itemLastModified + ") after provided ToDate (" 
-									+ toDateString + ", item will be skipped.", Loglevel.NORMAL);
+							this.log("Item: " + mdItem.getFullName() + " last modified (" + (itemLastModified == null || itemLastModified.getTimeInMillis() == 0 ? "null" : format1.format(itemLastModified.getTime())) + ") after provided ToDate (" 
+									+ toDateString + "), item will be skipped.", Loglevel.NORMAL);
 						}
 					}
 				}
