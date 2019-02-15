@@ -76,7 +76,8 @@ public class PackageBuilderCommandLine {
 	public static final String MAXITEMS_LONGNAME = "maxitems";
 	public static final String LOCALONLY = "lo";
     public static final String LOCALONLY_LONGNAME = "localonly";
-	
+    public static final String UNZIP = "u";
+    public static final String UNZIP_LONGNAME = "unzip";
     /**
      * @param args
      * @throws Exception
@@ -167,6 +168,7 @@ public class PackageBuilderCommandLine {
                     this.addParameterFromProperty(props, DOWNLOAD_LONGNAME);
                     this.addParameterFromProperty(props, GITCOMMIT_LONGNAME);
                     this.addParameterFromProperty(props, LOCALONLY_LONGNAME);
+                    this.addParameterFromProperty(props, UNZIP_LONGNAME);
                 }
             }
 
@@ -201,6 +203,7 @@ public class PackageBuilderCommandLine {
             this.addBooleanParameter(line, INCLUDECHANGEDATA, INCLUDECHANGEDATA_LONGNAME);
             boolean download = this.addBooleanParameter(line, DOWNLOAD, DOWNLOAD_LONGNAME);
             this.addBooleanParameter(line, LOCALONLY, LOCALONLY_LONGNAME);
+            this.addBooleanParameter(line, UNZIP, UNZIP_LONGNAME);
             final boolean gitCommit = this.addBooleanParameter(line, GITCOMMIT, GITCOMMIT_LONGNAME);
 
             // GIT needs download and changedata
@@ -208,6 +211,7 @@ public class PackageBuilderCommandLine {
                 download = true;
                 this.parameters.put(INCLUDECHANGEDATA_LONGNAME, "true");
                 this.parameters.put(DOWNLOAD_LONGNAME, "true");
+                this.parameters.put(UNZIP, "true");
             }
             
             if (download && !this.isParameterProvided(METADATATARGETDIR_LONGNAME)) {

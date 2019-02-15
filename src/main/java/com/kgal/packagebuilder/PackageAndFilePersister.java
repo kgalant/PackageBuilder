@@ -54,6 +54,7 @@ public class PackageAndFilePersister implements Callable<PersistResult> {
     private final int                                       packageNumber;
     private final boolean                                   includeChangeData;
     private final boolean                                   downloadData;
+    private final boolean                                   unzipDownload;
     private final double                                    myApiVersion;
     private final String                                    targetDir;
     private final String                                    metaSourceDownloadDir;
@@ -69,6 +70,7 @@ public class PackageAndFilePersister implements Callable<PersistResult> {
             final HashMap<String, ArrayList<InventoryItem>> theMap,
             final String filename,
             final int packageNumber, final boolean includeChangeData, final boolean download,
+            final boolean unzip,
             final MetadataConnection metadataConnection) {
         this.myApiVersion = myApiVersion;
         this.targetDir = targetDir;
@@ -78,6 +80,7 @@ public class PackageAndFilePersister implements Callable<PersistResult> {
         this.packageNumber = packageNumber;
         this.includeChangeData = includeChangeData;
         this.downloadData = download;
+        this.unzipDownload = unzip;
         this.metadataConnection = metadataConnection;
         this.result = new PersistResult(filename);
     }
@@ -135,7 +138,7 @@ public class PackageAndFilePersister implements Callable<PersistResult> {
             e.printStackTrace();
         } finally {
             if (itworked && this.downloadData) {
-                this.downloadAndUnzip(this.localOny);
+                this.downloadAndUnzip(this.localOny, this.unzipDownload);
             } else {
                 this.result.setStatus((itworked) ? PersistResult.Status.SUCCESS : PersistResult.Status.FAILURE);
 
@@ -152,7 +155,7 @@ public class PackageAndFilePersister implements Callable<PersistResult> {
      *            activity mainly for testing
      * @throws Exception
      */
-    private void downloadAndUnzip(final boolean doNotDownLoad) throws Exception {
+    private void downloadAndUnzip(final boolean doNotDownLoad, final boolean unzip) throws Exception {
         final String zipFileName = this.filename.replace("xml", "zip");
         if (doNotDownLoad) {
             this.logger.log(Level.INFO, "Working with local packages, no actual download");
@@ -169,20 +172,23 @@ public class PackageAndFilePersister implements Callable<PersistResult> {
         }
 
         final File zipResult = new File(zipFileName);
+
         if (zipResult.exists()) {
-            final Map<String, Calendar> fileDates = new HashMap<>();
-            this.theMap.entrySet().forEach((entry) -> {
-                try {
-                    final String curKey = String.valueOf(Utils.getDirForMetadataType(entry.getKey()));
-                    entry.getValue().forEach(item -> {
-                        fileDates.put(curKey + "/" + item.itemName.toLowerCase(), item.getLastModifiedDate());
-                    });
-                } catch (IOException e) {
-                    e.printStackTrace();
-                }
-            });
-            final ZipAndFileFixer zff = new ZipAndFileFixer(zipResult, fileDates);
-            zff.extractAndAdjust(this.metaSourceDownloadDir);
+            if (unzip) {
+                final Map<String, Calendar> fileDates = new HashMap<>();
+                this.theMap.entrySet().forEach((entry) -> {
+                    try {
+                        final String curKey = String.valueOf(Utils.getDirForMetadataType(entry.getKey()));
+                        entry.getValue().forEach(item -> {
+                            fileDates.put(curKey + "/" + item.itemName.toLowerCase(), item.getLastModifiedDate());
+                        });
+                    } catch (IOException e) {
+                        e.printStackTrace();
+                    }
+                });
+                final ZipAndFileFixer zff = new ZipAndFileFixer(zipResult, fileDates);
+                zff.extractAndAdjust(this.metaSourceDownloadDir);
+            }
             this.result.setStatus(Status.SUCCESS);
         } else {
             this.logger.log(Level.INFO, "Cancel requested or download ZIP file doesn't exist:" + zipFileName);

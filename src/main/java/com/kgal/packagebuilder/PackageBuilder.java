@@ -64,7 +64,7 @@ public class PackageBuilder {
     public static final double  API_VERSION            = 45.0;
     public static final boolean INCLUDECHANGEDATA      = false;
     public static final boolean FILTERVERSIONLESSFLOWS = true;
-    public static final int     CONCURRENT_THREADS     = 5;
+    public static final int     CONCURRENT_THREADS     = 8;
 
     private static final String[] STANDARDVALUETYPESARRAY = new String[] { "AccountContactMultiRoles",
             "AccountContactRole", "AccountOwnership", "AccountRating", "AccountType", "AddressCountryCode",
@@ -116,6 +116,7 @@ public class PackageBuilder {
     private boolean gitCommit                = false;
     private boolean simulateDataDownload     = false;
     private int     maxItemsInRegularPackage = PackageBuilder.MAXITEMSINPACKAGE;
+    private boolean unzipDownload            = false;
 
     // Constructor that gets all settings as map
     public PackageBuilder(final Map<String, String> parameters) {
@@ -139,7 +140,7 @@ public class PackageBuilder {
         this.downloadData = this.isParamTrue(PackageBuilderCommandLine.DOWNLOAD_LONGNAME);
         this.gitCommit = this.isParamTrue(PackageBuilderCommandLine.GITCOMMIT_LONGNAME);
         this.simulateDataDownload = this.isParamTrue(PackageBuilderCommandLine.LOCALONLY_LONGNAME);
-
+        this.unzipDownload = this.isParamTrue(PackageBuilderCommandLine.UNZIP_LONGNAME);
         this.maxItemsInRegularPackage = Integer
                 .valueOf(this.parameters.get(PackageBuilderCommandLine.MAXITEMS_LONGNAME));
 
@@ -188,7 +189,7 @@ public class PackageBuilder {
             final int mdTypeSize = mdTypeList.size();
 
             // do we have room in this file for the
-            if ((fileCount + mdTypeSize) > this.maxItemsInPackage(mdType)) {
+            if ((fileCount + mdTypeSize) > this.maxItemsInRegularPackage) {
                 // no, we don't, finish file off, add to list, create new and
                 // add to that
 
@@ -198,7 +199,7 @@ public class PackageBuilder {
                 // put part of this type into this file
 
                 final ArrayList<InventoryItem> mdTypeListPartial = new ArrayList<>(
-                        mdTypeList.subList(0, this.maxItemsInPackage(mdType) - fileCount));
+                        mdTypeList.subList(0, this.maxItemsInRegularPackage - fileCount));
                 currentFile.put(mdType, mdTypeListPartial);
                 mdTypeList.removeAll(mdTypeListPartial);
                 fileCount += mdTypeListPartial.size();
@@ -220,12 +221,12 @@ public class PackageBuilder {
             // but need to check that this type isn't more than maxItems
             // if yes, then split this type into multiple pieces
 
-            while (mdTypeList.size() > this.maxItemsInPackage(mdType)) {
+            while (mdTypeList.size() > this.maxItemsInRegularPackage) {
                 // too much even for a single file just with that,
                 // break up into multiple files
 
                 final ArrayList<InventoryItem> mdTypeListPartial = new ArrayList<>(
-                        mdTypeList.subList(0, this.maxItemsInPackage(mdType)));
+                        mdTypeList.subList(0, this.maxItemsInRegularPackage));
                 currentFile.put(mdType, mdTypeListPartial);
                 fileCount += mdTypeListPartial.size();
                 files.add(currentFile);
@@ -760,16 +761,16 @@ public class PackageBuilder {
         final int totalFiles = files.length;
         final ExecutorService WORKER_THREAD_POOL = Executors.newFixedThreadPool(PackageBuilder.CONCURRENT_THREADS);
 
-
         final Collection<PackageAndFilePersister> allPersisters = new ArrayList<>();
 
-        // Write out a complete version of the package,xml for later mdapi:convert operations
+        // Write out a complete version of the package,xml for later
+        // mdapi:convert operations
         final PackageAndFilePersister completePackageXML = new PackageAndFilePersister(this.myApiVersion,
                 this.targetDir,
                 this.metaSourceDownloadDir,
                 myFile,
                 "packageComplete.xml", 9999,
-                false, false, this.srcMetadataConnection);
+                false, false, false, this.srcMetadataConnection);
         allPersisters.add(completePackageXML);
 
         // Add all XML Files to the download queue
@@ -783,6 +784,7 @@ public class PackageBuilder {
                     files[i], curFileName, i,
                     this.includeChangeData,
                     this.downloadData,
+                    this.unzipDownload,
                     this.srcMetadataConnection);
             if (this.simulateDataDownload) {
                 pfp.setLocalOnly();
@@ -1063,9 +1065,4 @@ public class PackageBuilder {
         // output any new records to screen
 
     }
-
-    private int maxItemsInPackage(final String itemType) {
-        return ("Document".equalsIgnoreCase(itemType)) ? 50 : this.maxItemsInRegularPackage;
-    }
-
 }

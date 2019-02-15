@@ -39,6 +39,16 @@ output verbose logging instead of just core output
 include data on who last changed the item directly in the members tag of every item of the package.xml
 * -mx,--maxitems `<arg>`    
 max number of items to put into a single package.xml (10000 is current max enforced by SF platform, for API 33 and higher, 5000 before)
+* -c --includechangedata
+Will amend the `package.xml` with attributes that specify the lst update and last update user. Not compatible with SFDX mdapi operations!
+* -do --download
+will download the package(s) content as zip file
+* -u --unzip
+will unzip downloaded files and adjust file date if available
+* -g --gitcommit
+will commit changed files to git (git repository needs to be setup upfront!)
+Will use the original author as author or "John Doe".
+Implies -c -do
 
 All parameters can be provided in parameter files specified with the -o parameter. More than one file can be provided (as in the example below, where one file would define what to fetch, skippatterns, etc., and the other where to fetch from). If any parameters are provided both in files and on the command line, the command line ones will be used. 
 
