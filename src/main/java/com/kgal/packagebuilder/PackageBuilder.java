@@ -19,12 +19,8 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.regex.PatternSyntaxException;
 
-import javax.xml.transform.TransformerConfigurationException;
-
 import org.apache.commons.lang3.ArrayUtils;
-import org.xml.sax.SAXException;
 
-import com.kgal.packagebuilder.inventory.InventoryDatabase;
 import com.kgal.packagebuilder.inventory.InventoryItem;
 import com.kgal.packagebuilder.output.GitOutputManager;
 import com.kgal.packagebuilder.output.SimpleXMLDoc;
@@ -37,10 +33,6 @@ import com.sforce.soap.metadata.MetadataConnection;
 import com.sforce.soap.partner.PartnerConnection;
 import com.sforce.soap.partner.QueryResult;
 import com.sforce.soap.partner.sobject.SObject;
-//import com.sforce.soap.partner.PartnerConnection;
-//import com.sforce.soap.partner.QueryResult;
-//import com.sforce.soap.partner.sobject.SObject;
-import com.sforce.soap.tooling.ToolingConnection;
 import com.sforce.ws.ConnectionException;
 
 public class PackageBuilder {
@@ -198,15 +190,7 @@ public class PackageBuilder {
 			this.mode = OperationMode.ORG;
 		}
 		this.generatePackageXML(inventory);
-		//
-		//		if (this.downloadData) {
-		//			// don't need to download - already done that when writing out the file
-		//			// this.downloadMetaData(actualInventory);
-		//			//            if (this.gitCommit) {
-		//			//                GitOutputManager gom = new GitOutputManager(this.parameters);
-		//			//                gom.commitToGit(actualInventory);
-		//			//            }
-		//		}
+
 	}
 
 	private HashMap<String, ArrayList<InventoryItem>>[] createPackageFiles(final HashMap<String, ArrayList<InventoryItem>> myCompleteInventory) {
