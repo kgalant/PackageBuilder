@@ -20,6 +20,8 @@ import java.util.regex.Pattern;
 import java.util.regex.PatternSyntaxException;
 
 import javax.xml.transform.TransformerConfigurationException;
+
+import org.apache.commons.lang3.ArrayUtils;
 import org.xml.sax.SAXException;
 
 import com.kgal.packagebuilder.inventory.InventoryDatabase;
@@ -109,13 +111,19 @@ public class PackageBuilder {
 			"SocialPostEngagementLevel", "SocialPostReviewedStatus", "SolutionStatus", "TaskPriority", "TaskStatus",
 			"TaskSubject", "TaskType",
 			"WorkOrderLineItemStatus", "WorkOrderPriority", "WorkOrderStatus" };
-	
+
 	private static final String[] ADDITIONALTYPESTOADD = new String[] { "CustomLabel", "AssignmentRule",
 			"BusinessProcess","CompactLayout","CustomField","FieldSet","Index","ListView","NamedFilter","RecordType","SharingReason","ValidationRule","WebLink", // CustomObject components
 			"WorkflowActionReference","WorkflowAlert","WorkflowEmailRecipient","WorkflowFieldUpdate","WorkflowFlowAction","WorkflowFlowActionParameter", 		// Workflow components
 			"WorkflowKnowledgePublish","WorkflowOutboundMessage","WorkflowRule","WorkflowTask","WorkflowTimeTrigger"											// Workflow components
-			
+
 	};
+
+	private static final String[] ITEMSTOINCLUDEWITHPROFILESPERMSETS = new String[] { "ApexClass", "CustomApplication", "CustomField", 
+			"CustomObject", "CustomTab", "ExternalDataSource", "RecordType", "ApexPage"};
+
+	private static final String[] SPECIALTREATMENTPERMISSIONTYPES = new String[] { "Profile", "PermissionSet"};
+
 
 	// Collections
 	private final ArrayList<Pattern>  skipPatterns  = new ArrayList<>();
@@ -135,14 +143,12 @@ public class PackageBuilder {
 	String                                          authEndPoint = "";
 	private long                                    timeStart;
 	private MetadataConnection                      srcMetadataConnection;
-	private ToolingConnection                       srcToolingConnection;
 	private String                                  srcUrl;
 	private String                                  srcUser;
 	private String                                  srcPwd;
 	// added for database handling
-	private String            dbFilename;
+	//	private String            dbFilename;
 	private String            targetDir = "";
-	private String            metaSourceDownloadDir = "";
 	private Loglevel          loglevel;
 	private OperationMode     mode;
 	private PartnerConnection srcPartnerConnection;
@@ -151,6 +157,7 @@ public class PackageBuilder {
 	private boolean downloadData      = false;
 	private boolean gitCommit         = false;
 	private int		maxItemsInPackage = MAXITEMSINPACKAGE;
+	private int itemCount;
 
 	// Constructor that gets all settings as map
 	public PackageBuilder(final Map<String, String> parameters) {
@@ -172,15 +179,12 @@ public class PackageBuilder {
 
 		// initialize inventory - it will be used in both types of operations
 		// (connect to org or run local)
-		// added for inventory database handling
 
 		final HashMap<String, ArrayList<InventoryItem>> inventory = new HashMap<>();
-		// HashMap<String,ArrayList<String>> inventory = new
-		// HashMap<String,ArrayList<String>>();
 
 		this.myApiVersion = Double.parseDouble(this.parameters.get(PackageBuilderCommandLine.APIVERSION_LONGNAME));
 		this.targetDir = Utils.checkPathSlash(Utils.checkPathSlash(this.parameters.get(PackageBuilderCommandLine.DESTINATION_LONGNAME)));
-		this.metaSourceDownloadDir = Utils.checkPathSlash(Utils.checkPathSlash(this.parameters.get(PackageBuilderCommandLine.BASEDIRECTORY_LONGNAME)));
+		//		this.metaSourceDownloadDir = Utils.checkPathSlash(Utils.checkPathSlash(this.parameters.get(PackageBuilderCommandLine.BASEDIRECTORY_LONGNAME)));
 
 		// handling for building a package from a directory
 		// if we have a base directory set, ignore everything else and generate
@@ -193,25 +197,126 @@ public class PackageBuilder {
 			this.generateInventoryFromOrg(inventory);
 			this.mode = OperationMode.ORG;
 		}
-		final HashMap<String, ArrayList<InventoryItem>>[] actualInventory = this.generatePackageXML(inventory);
-
-		if (this.downloadData) {
-			// don't need to download - already done that when writing out the file
-			// this.downloadMetaData(actualInventory);
-			//            if (this.gitCommit) {
-			//                GitOutputManager gom = new GitOutputManager(this.parameters);
-			//                gom.commitToGit(actualInventory);
-			//            }
-		}
+		this.generatePackageXML(inventory);
+		//
+		//		if (this.downloadData) {
+		//			// don't need to download - already done that when writing out the file
+		//			// this.downloadMetaData(actualInventory);
+		//			//            if (this.gitCommit) {
+		//			//                GitOutputManager gom = new GitOutputManager(this.parameters);
+		//			//                gom.commitToGit(actualInventory);
+		//			//            }
+		//		}
 	}
 
-	private HashMap<String, ArrayList<InventoryItem>>[] breakPackageIntoFiles(
-			final HashMap<String, ArrayList<InventoryItem>> myFile) {
+	private HashMap<String, ArrayList<InventoryItem>>[] createPackageFiles(final HashMap<String, ArrayList<InventoryItem>> myCompleteInventory) {
+
+		final ArrayList<HashMap<String, ArrayList<InventoryItem>>> files = new ArrayList<HashMap<String, ArrayList<InventoryItem>>>();
+		HashMap<String, ArrayList<InventoryItem>> lastFile = null;
+		
+		// first, check how many items we have
+		// if no more than one file, con't bother with any special treatment
+
+		if (itemCount > maxItemsInPackage) {
+
+			// we'll get more than one package, need to check if we need special treatment
+			// for profiles/permission sets
+			
+			// first, check if we have any items that contain permissions
+			// if we do, put them in the first package, then add all items that
+			// add permissions
+
+			boolean exportingPermissions = false;
+			for (String mdType : SPECIALTREATMENTPERMISSIONTYPES) {
+				if (myCompleteInventory.containsKey(mdType)) {
+					exportingPermissions = true;
+					break;
+				}
+			}
+
+			// if we are exporting permission, check if we're bringing anything that needs to go into the permissions file along
+
+			boolean exportingPermissionsDependentItems = false;
+			for (String mdType : ITEMSTOINCLUDEWITHPROFILESPERMSETS) {
+				if (myCompleteInventory.containsKey(mdType)) {
+					exportingPermissionsDependentItems = true;
+					break;
+				}
+			}
+
+			// so now, if we're actually exporting permissions and dependent items, we need to process them first
+			// else, just continue as normal
+
+			if (exportingPermissions && exportingPermissionsDependentItems) {
+				// try to add all the special treatment types first and see if we get one file back or more
+				// if 1, process the rest as normal
+				// if not, warn that security items (Profiles/PermissionSets) may be incomplete, warn and 
+				// process everything else
+
+				this.log("Asked to export permission settings (Profiles/PermSets). Will now try to bundle them and dependent items in one package.",
+						Loglevel.NORMAL);
+
+				// create inventory with all the special treatment items
+
+				final HashMap<String, ArrayList<InventoryItem>> mySpecialTreatmentInventory = new HashMap<String, ArrayList<InventoryItem>>();
+
+				for (final String mdType : ArrayUtils.addAll(SPECIALTREATMENTPERMISSIONTYPES, ITEMSTOINCLUDEWITHPROFILESPERMSETS)) {
+					if (myCompleteInventory.get(mdType) != null && myCompleteInventory.get(mdType).size() >0) {
+						mySpecialTreatmentInventory.put(mdType, myCompleteInventory.get(mdType));
+						myCompleteInventory.remove(mdType);
+					}
+				}
+
+				// now create files with just the special treatment types
+
+				files.addAll(breakInventoryIntoFiles(mySpecialTreatmentInventory, null));
+
+				// check if we got 1 file only, log if not
+
+				if (files.size() != 1) {
+					this.log("Permission settings (Profiles/PermSets) with dependent items over " + maxItemsInPackage + 
+							" items - won't fit in one package. Please note that contents of profiles/permission sets may be incomplete.", Loglevel.BRIEF);
+				}
+				
+				// get last file from files to continue adding to it
+				
+				lastFile = files.get(files.size()-1);
+				
+			}
+		}
+		// now add all the rest of the inventory
+
+		files.addAll(breakInventoryIntoFiles(myCompleteInventory, lastFile));
+
+		// generate return array
+
+		@SuppressWarnings("unchecked")
+		HashMap<String, ArrayList<InventoryItem>>[] retval = new HashMap[files.size()];
+
+		retval = files.toArray(retval);
+
+		return files.toArray(retval);
+	}
+
+	// need to break the inventory into packages of less than MAXITEMS items
+	// also need to ensure that if we have profiles or permission sets, they ideally go in the same package as:
+	// ApexClass, CustomApplication, CustomField, CustomObject, CustomTab, ExternalDataSource, RecordType, ApexPage
+
+	private ArrayList<HashMap<String, ArrayList<InventoryItem>>> breakInventoryIntoFiles(
+			final HashMap<String, ArrayList<InventoryItem>> myFile, HashMap<String, ArrayList<InventoryItem>> fileToContinue) {
 
 		final ArrayList<HashMap<String, ArrayList<InventoryItem>>> files = new ArrayList<>();
-		int fileIndex = 0;
+		int fileIndex = 1;
 		int fileCount = 0;
-		HashMap<String, ArrayList<InventoryItem>> currentFile = new HashMap<>();
+		
+		HashMap<String, ArrayList<InventoryItem>> currentFile;
+		if (fileToContinue == null) {
+			currentFile = new HashMap<>();
+		} else {
+			currentFile = fileToContinue;
+			fileCount = countItemsInFile(currentFile);
+		}
+
 		for (final String mdType : myFile.keySet()) {
 			final ArrayList<InventoryItem> mdTypeList = myFile.get(mdType);
 			final int mdTypeSize = mdTypeList.size();
@@ -281,67 +386,20 @@ public class PackageBuilder {
 		files.add(currentFile);
 		this.log("Finished composing file " + fileIndex + ", total count: " + fileCount + "items.", Loglevel.NORMAL);
 
-		@SuppressWarnings("unchecked")
-		HashMap<String, ArrayList<InventoryItem>>[] retval = new HashMap[files
-		                                                                 .size()];
+		return files;
+	}	
 
-		retval = files.toArray(retval);
-
+	private int countItemsInFile(HashMap<String, ArrayList<InventoryItem>> fileToCount) {
+		int retval = 0;
+		
+		for (String mdType : fileToCount.keySet()) {
+			if (fileToCount.get(mdType) != null) {
+				retval += fileToCount.get(mdType).size();
+			}
+		}
+		
 		return retval;
 	}
-
-	// this method reads in any old database that may exist that matches the org
-	// then runs the current inventory against that database to generate any
-	// updates/deletes
-	// and then writes the database file back
-
-
-
-	// this method runs through the inventory, identifies any items that have
-	// changed since the database
-	// was written and adds the relevant lines to the database
-
-	// TODO: parameterized handling for deletes
-
-	private void doDatabaseUpdate(final InventoryDatabase database,
-			final HashMap<String, ArrayList<InventoryItem>> inventory) {
-
-		for (final String metadataType : inventory.keySet()) {
-			this.doDatabaseUpdateForAType(metadataType, database, inventory.get(metadataType));
-		}
-
-	}
-
-	// this method compares the inventory to the database, and adds/updates as
-	// needed
-
-	private void doDatabaseUpdateForAType(final String metadataType, final InventoryDatabase database,
-			final ArrayList<InventoryItem> inventory) {
-
-		for (final InventoryItem item : inventory) {
-			database.addIfNewOrUpdated(metadataType, item);
-		}
-
-	}
-
-
-	/*
-	 * Not needed ATM, download being done when writing each package.xml
-	 * 
-    private void downloadMetaData(final HashMap<String, ArrayList<InventoryItem>>[] actualInventory) throws Exception {
-    	int packageNumber = 1;
-    	for (HashMap<String, ArrayList<InventoryItem>> inventory : actualInventory) {
-    		this.log("Asked to retrieve this package from org - will do so now.", Loglevel.BRIEF);
-        	OrgRetrieve myRetrieve = new OrgRetrieve(OrgRetrieve.Loglevel.VERBOSE);
-        	myRetrieve.setMetadataConnection(srcMetadataConnection);
-        	myRetrieve.setZipFile("mypackage" + packageNumber + ".zip");
-        	myRetrieve.setInventoryToRetrieve(inventory);
-        	myRetrieve.setApiVersion(myApiVersion);
-        	myRetrieve.setPackageNumber(packageNumber++);
-        	myRetrieve.retrieveZip();
-    	}
-    }
-	 */
 
 	private void endTiming() {
 		final long end = System.currentTimeMillis();
@@ -736,7 +794,7 @@ public class PackageBuilder {
 
 		// now break it up into files if needed
 
-		final HashMap<String, ArrayList<InventoryItem>>[] files = this.breakPackageIntoFiles(myFile);
+		final HashMap<String, ArrayList<InventoryItem>>[] files = this.createPackageFiles(myFile);
 
 
 
@@ -768,22 +826,22 @@ public class PackageBuilder {
 		return file.substring(indexOfSourceFolder + sourceFolder.length() + 1, file.length());
 	}
 
-	private InventoryDatabase getDatabase(final String orgId) {
-
-		InventoryDatabase newDatabase = null;
-		final boolean databaseFileExists = false;
-
-		// TODO find a database if it exists
-
-		// placeholder for loading database file if it exists
-		if (databaseFileExists) {
-			newDatabase = InventoryDatabase.readDatabaseFromFile(this.dbFilename);
-			// TODO confirm that the orgid matches
-		} else {
-			newDatabase = new InventoryDatabase(orgId);
-		}
-		return newDatabase;
-	}
+	//	private InventoryDatabase getDatabase(final String orgId) {
+	//
+	//		InventoryDatabase newDatabase = null;
+	//		final boolean databaseFileExists = false;
+	//
+	//		// TODO find a database if it exists
+	//
+	//		// placeholder for loading database file if it exists
+	//		if (databaseFileExists) {
+	//			newDatabase = InventoryDatabase.readDatabaseFromFile(this.dbFilename);
+	//			// TODO confirm that the orgid matches
+	//		} else {
+	//			newDatabase = new InventoryDatabase(orgId);
+	//		}
+	//		return newDatabase;
+	//	}
 
 	private String getOrgIdentifier() {
 		// TODO Auto-generated method stub
@@ -817,19 +875,19 @@ public class PackageBuilder {
 			for (final String obj : this.describeMetadataObjectsMap.keySet()) {
 				typesToFetch.add(obj.trim());
 			}
-			
+
 			// now add the list of types to be added manually
-			
+
 			for (String manualType : ADDITIONALTYPESTOADD) {
 				typesToFetch.add(manualType.trim());
 			}
-			
+
 			// check API version - in 45+, remove FlowDefinition
-			
+
 			if (Double.valueOf(this.parameters.get(PackageBuilderCommandLine.APIVERSION_LONGNAME)) >= 45) {
 				typesToFetch.remove("FlowDefinition");
 			}
-			
+
 		}
 		return typesToFetch;
 	}
@@ -877,7 +935,8 @@ public class PackageBuilder {
 	private int handleSkippingItems(final HashMap<String, ArrayList<InventoryItem>> myFile) {
 
 		int skipCount = 0;
-		
+		itemCount = 0;
+
 		SimpleDateFormat format1 = new SimpleDateFormat("yyyy-MM-dd");
 
 		// Initiate patterns array
@@ -888,14 +947,14 @@ public class PackageBuilder {
 		initializePatternArray(this.parameters.get(PackageBuilderCommandLine.INCLUDEEMAIL_LONGNAME), this.includeEmail);
 		initializePatternArray(this.parameters.get(PackageBuilderCommandLine.SKIPUSERNAME_LONGNAME), this.skipUsername);
 		initializePatternArray(this.parameters.get(PackageBuilderCommandLine.INCLUDEUSERNAME_LONGNAME), this.includeUsername);
-		
+
 		// initialize date ranges, if any
-		
+
 		String fromDateString = this.parameters.get(PackageBuilderCommandLine.FROMDATE_LONGNAME);
 		String toDateString = this.parameters.get(PackageBuilderCommandLine.TODATE_LONGNAME);
 		Date fromDate = null;
 		Date toDate = null;
-		
+
 		if (fromDateString != null && fromDateString.length() >= 8) {
 			try {
 				fromDate = Date.valueOf(fromDateString);
@@ -904,7 +963,7 @@ public class PackageBuilder {
 				this.log("FromDate value: " + fromDateString + " cannot be parsed to a proper date. Required format: YYYY-[M]M-[D]D. Continuing without FromDate parameter.", Loglevel.BRIEF);
 			}
 		}
-		
+
 		if (toDateString != null && toDateString.length() >= 8) {
 			try {
 				toDate = Date.valueOf(toDateString);
@@ -919,7 +978,7 @@ public class PackageBuilder {
 			for (Iterator<InventoryItem> i = items.iterator(); i.hasNext();) {
 				final InventoryItem mdItem = i.next();
 				boolean itemSkipped = false;
-				
+
 				for (Pattern p :  this.skipPatterns) {
 					if (checkItemAgainstPattern(p, mdItem, mdType, myFile.get(mdType), true, PatternField.ITEMNAME) == 1) {
 						// item was skipped
@@ -978,7 +1037,7 @@ public class PackageBuilder {
 						}
 					}
 				}
-				
+
 				// check against dates now, if defined
 				if (!itemSkipped) {
 					if (fromDate != null) {
@@ -1005,8 +1064,10 @@ public class PackageBuilder {
 
 				if (itemSkipped) {
 					i.remove();
+				} else {
+					itemCount++;
 				}
-				
+
 			}
 		}
 
@@ -1164,28 +1225,6 @@ public class PackageBuilder {
 		this.timeStart = System.currentTimeMillis();
 	}
 
-	private void updateDatabase(final HashMap<String, ArrayList<InventoryItem>> inventory) {
-		// construct org identified
-		final String orgId = this.getOrgIdentifier();
-
-		// read in old database (if any), generate one if not
-		final InventoryDatabase database = this.getDatabase(orgId);
-
-		// run through current inventory, compare against db
-		this.doDatabaseUpdate(database, inventory);
-
-		// write out new records to be added to database
-
-		for (final String type : database.getUpdatedItemsDatabase().keySet()) {
-			for (final InventoryItem i : database.getUpdatedItemsDatabase().get(type)) {
-				System.out.println((i.isNew ? "New: " : "Updated: ") + i.toCSV());
-			}
-		}
-
-		// output any new records to screen
-
-	}
-
 	/*
 	 * private void writePackageXmlFile(HashMap<String, ArrayList<String>>
 	 * theMap, String filename)
@@ -1213,6 +1252,16 @@ public class PackageBuilder {
 
 		final ArrayList<String> mdTypes = new ArrayList<>(theMap.keySet());
 		Collections.sort(mdTypes);
+		
+		// get list of types for comment line
+		ArrayList<String> typesInPackage = new ArrayList<String>();
+		for (final String mdType : mdTypes) {
+			if (theMap.get(mdType).size() == 0) {
+				continue;
+			} else{
+				typesInPackage.add(mdType + "(" + theMap.get(mdType).size() + ")");
+			}
+		}
 
 		for (final String mdType : mdTypes) {
 			if (theMap.get(mdType).size() == 0) {
