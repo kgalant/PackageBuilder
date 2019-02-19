@@ -84,14 +84,12 @@ public class PackageBuilder {
 
 	}
 
-	// Static values that don;t change
-	private static final String  DBFILENAMESUFFIX       = ".packageBuilderDB";
+	// Static values that don't change
 	private static final String  DEFAULT_DATE_FORMAT    = "yyyy-MM-dd'T'HH:mm:ss";
 	private static final String  URLBASE                = "/services/Soap/u/";
 	public static final int     MAXITEMSINPACKAGE      = 10000;
 	public static final double   API_VERSION            = 45.0;
 	public static final boolean  INCLUDECHANGEDATA      = false;
-	private static final boolean FILTERVERSIONLESSFLOWS = true;
 
 	private static final String[] STANDARDVALUETYPESARRAY = new String[] { "AccountContactMultiRoles",
 			"AccountContactRole", "AccountOwnership", "AccountRating", "AccountType", "AddressCountryCode",
@@ -719,52 +717,8 @@ public class PackageBuilder {
 
 			Collections.sort(items, (o1, o2) -> o1.itemName.compareTo(o2.itemName));
 			for (final InventoryItem item : items) {
-
-				// special treatment for flows
-				// get rid of items returned without a version number
-				// <members>Update_Campaign_path_on_oppty</members> **** FILTER
-				// THIS ONE OUT SO IT DOESN'T APPEAR***
-				// <members>Update_Campaign_path_on_oppty-4</members>
-				// <members>Update_Campaign_path_on_oppty-5</members>
-
-				if (mdType.toLowerCase().equals("flow") && PackageBuilder.FILTERVERSIONLESSFLOWS) {
-					if (!item.itemName.contains("-")) {
-						// we won't count this one as skipped, since it
-						// shouldn't be there in the first place
-						continue;
-					}
-				}
 				myFile.get(mdType).add(item);
 				itemCount++;
-			}
-
-			// special treatment for flows
-			// make a callout to Tooling API to get latest version for Active
-			// flows (which the shi+ Metadata API won't give you)
-
-			// only do this if we're running in org mode
-
-			if (mdType.toLowerCase().equals("flow") && (this.mode == OperationMode.ORG)) {
-
-				/*
-				 * skip flow handling for now
-				 *
-				 * String flowQuery =
-				 * "SELECT DeveloperName ,ActiveVersion.VersionNumber " +
-				 * "FROM FlowDefinition " +
-				 * "WHERE ActiveVersion.VersionNumber <> NULL";
-				 *
-				 * this.srcToolingConnection = LoginUtil.toolingLogin(srcUrl,
-				 * srcUser, srcPwd); com.sforce.soap.tooling.QueryResult qr =
-				 * srcToolingConnection.query(flowQuery);
-				 * com.sforce.soap.tooling.sobject.SObject[] records =
-				 * qr.getRecords(); for (com.sforce.soap.tooling.sobject.SObject
-				 * record : records) {
-				 * com.sforce.soap.tooling.sobject.FlowDefinition fd =
-				 * (com.sforce.soap.tooling.sobject.FlowDefinition) record;
-				 * myFile.get(mdType).add(fd.getDeveloperName() + "-" +
-				 * fd.getActiveVersion().getVersionNumber()); itemCount++; }
-				 */
 			}
 		}
 
