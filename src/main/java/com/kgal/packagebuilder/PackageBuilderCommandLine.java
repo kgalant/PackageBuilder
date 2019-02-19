@@ -122,26 +122,12 @@ public class PackageBuilderCommandLine {
     public boolean parseCommandLine(final String[] args) {
 
         boolean canProceed = false;
-
-        this.parameters.put(APIVERSION_LONGNAME, "" + PackageBuilder.API_VERSION);
-        this.parameters.put(METADATAITEMS_LONGNAME, null);
-        this.parameters.put(SKIPPATTERNS_LONGNAME, null);
-        this.parameters.put(SERVERURL_LONGNAME, null);
-        this.parameters.put(USERNAME_LONGNAME, null);
-        this.parameters.put(PASSWORD_LONGNAME, null);
-        this.parameters.put(DESTINATION_LONGNAME, null);
-        this.parameters.put(BASEDIRECTORY_LONGNAME, null);
-        this.parameters.put(INCLUDECHANGEDATA_LONGNAME, String.valueOf(PackageBuilder.INCLUDECHANGEDATA));
-
-        // adding handling for building a package from a directory
-        this.parameters.put(BASEDIRECTORY_LONGNAME, null);
-
-        final HashSet<String> nonMandatoryParams = new HashSet<>();
-        nonMandatoryParams.add("skipItems");
         
-        //added for maxitems
-        nonMandatoryParams.add("skipItems");
+        // put in default parameters
+        this.parameters.put(APIVERSION_LONGNAME, "" + PackageBuilder.API_VERSION);
 
+        // now parse the command line
+        
         final CommandLineParser parser = new DefaultParser();
         CommandLine line = null;
         try {
@@ -152,7 +138,9 @@ public class PackageBuilderCommandLine {
             System.err.println("Command line parsing failed.  Reason: " + exp.getMessage());
             System.exit(-1);
         }
-
+        
+        // first, add any parameters from any property files provided on command line
+        
         if (line != null) {
             // first initialize parameters from any parameter files provided
 
@@ -181,110 +169,115 @@ public class PackageBuilderCommandLine {
 
                     // adding handling for building a package from a directory
                     this.addParameterFromProperty(props, DESTINATION_LONGNAME);
+                    
+                    // additional parameters to be available from property file
+                    this.addBooleanParameterFromProperty(props, VERBOSE_LONGNAME);
+                    this.addBooleanParameterFromProperty(props, DOWNLOAD_LONGNAME);
+                    this.addBooleanParameterFromProperty(props, GITCOMMIT_LONGNAME);
                 }
             }
+        }
+        
+        // now add any parameters from command line
+        // will supersede anything provided in property files
+        
+        this.addCmdlineParameter(line, APIVERSION, APIVERSION_LONGNAME);
+        this.addCmdlineParameter(line, USERNAME, USERNAME_LONGNAME);
+        this.addCmdlineParameter(line, SERVERURL, SERVERURL_LONGNAME);
+        this.addCmdlineParameter(line, PASSWORD, PASSWORD_LONGNAME);
+        this.addCmdlineParameter(line, METADATAITEMS, METADATAITEMS_LONGNAME);
+        this.addCmdlineParameter(line, SKIPPATTERNS, SKIPPATTERNS_LONGNAME);
+        this.addCmdlineParameter(line, INCLUDEPATTERNS, INCLUDEPATTERNS_LONGNAME);
+        this.addCmdlineParameter(line, SKIPEMAIL, SKIPEMAIL_LONGNAME);
+        this.addCmdlineParameter(line, INCLUDEEMAIL, INCLUDEEMAIL_LONGNAME);
+        this.addCmdlineParameter(line, SKIPUSERNAME, SKIPUSERNAME_LONGNAME);
+        this.addCmdlineParameter(line, INCLUDEUSERNAME, INCLUDEUSERNAME_LONGNAME);
+        this.addCmdlineParameter(line, DESTINATION, DESTINATION_LONGNAME);
+        this.addCmdlineParameter(line, METADATATARGETDIR, METADATATARGETDIR_LONGNAME);
+        this.addCmdlineParameter(line, MAXITEMS, MAXITEMS_LONGNAME);
+        this.addCmdlineParameter(line, FROMDATE, FROMDATE_LONGNAME);
+        this.addCmdlineParameter(line, TODATE, TODATE_LONGNAME);
+        this.addCmdlineParameter(line, VERBOSE, VERBOSE_LONGNAME);
+        
+        // add include change telemetry data and download
+        this.addBooleanParameter(line, INCLUDECHANGEDATA, INCLUDECHANGEDATA_LONGNAME);
+        this.addBooleanParameter(line, DOWNLOAD, DOWNLOAD_LONGNAME);
+        this.addBooleanParameter(line, GITCOMMIT, GITCOMMIT_LONGNAME);
 
-            // now add all parameters form the commandline
-            this.addCmdlineParameter(line, APIVERSION, APIVERSION_LONGNAME);
-            this.addCmdlineParameter(line, USERNAME, USERNAME_LONGNAME);
-            this.addCmdlineParameter(line, SERVERURL, SERVERURL_LONGNAME);
-            this.addCmdlineParameter(line, PASSWORD, PASSWORD_LONGNAME);
-            this.addCmdlineParameter(line, METADATAITEMS, METADATAITEMS_LONGNAME);
-            this.addCmdlineParameter(line, SKIPPATTERNS, SKIPPATTERNS_LONGNAME);
-            this.addCmdlineParameter(line, INCLUDEPATTERNS, INCLUDEPATTERNS_LONGNAME);
-            this.addCmdlineParameter(line, SKIPEMAIL, SKIPEMAIL_LONGNAME);
-            this.addCmdlineParameter(line, INCLUDEEMAIL, INCLUDEEMAIL_LONGNAME);
-            this.addCmdlineParameter(line, SKIPUSERNAME, SKIPUSERNAME_LONGNAME);
-            this.addCmdlineParameter(line, INCLUDEUSERNAME, INCLUDEUSERNAME_LONGNAME);
-            this.addCmdlineParameter(line, DESTINATION, DESTINATION_LONGNAME);
-            this.addCmdlineParameter(line, METADATATARGETDIR, METADATATARGETDIR_LONGNAME);
-            this.addCmdlineParameter(line, MAXITEMS, MAXITEMS_LONGNAME);
-            this.addCmdlineParameter(line, FROMDATE, FROMDATE_LONGNAME);
-            this.addCmdlineParameter(line, TODATE, TODATE_LONGNAME);
+        // adding handling for building a package from a directory
+        this.addCmdlineParameter(line, BASEDIRECTORY, BASEDIRECTORY_LONGNAME);
 
-            // adding handling for building a package from a directory
-            this.addCmdlineParameter(line, BASEDIRECTORY, BASEDIRECTORY_LONGNAME);
+        ////////////////////////////////////////////////////////////////////////
+        //
+        // from here on down, any special treatment for individual parameters
+        //
+        ////////////////////////////////////////////////////////////////////////
+        
+        
+        // if verbose parameter is provided, set loglevel to verbose, else it will default to normal
+        if (isOptionSet(VERBOSE_LONGNAME)) {
+            this.parameters.put("loglevel", VERBOSE_LONGNAME);
+        }        
 
-            // adding handling for brief output parameter
-            if (line.hasOption(VERBOSE)) {
-                this.parameters.put("loglevel", VERBOSE_LONGNAME);
-            }
-            
-            // add default to current directory if no target directory given
+        // add default to current directory if no target directory given
+        if (!this.isParameterProvided(DESTINATION_LONGNAME)) {
+            System.out.println("No target directory provided, will default to current directory.");
+            this.parameters.put(DESTINATION_LONGNAME, ".");
+        }
 
-            if (!this.isParameterProvided(DESTINATION_LONGNAME)) {
-                System.out.println("No target directory provided, will default to current directory.");
-                this.parameters.put(DESTINATION_LONGNAME, ".");
-            }
-            
-            // add include change telemetry data and download
-            this.addBooleanParameter(line, INCLUDECHANGEDATA, INCLUDECHANGEDATA_LONGNAME);
-            boolean download = this.addBooleanParameter(line, DOWNLOAD, DOWNLOAD_LONGNAME);
-            final boolean gitCommit = this.addBooleanParameter(line, GITCOMMIT, GITCOMMIT_LONGNAME);
+     // GIT needs download and changedata
+        if (isOptionSet(GITCOMMIT_LONGNAME)) {
+            this.parameters.put(INCLUDECHANGEDATA_LONGNAME, "true");
+            this.parameters.put(DOWNLOAD_LONGNAME, "true");
+        }
+        
+        // default download target to current directory if no explicit destination provided
+        if ((isOptionSet(GITCOMMIT_LONGNAME) || isOptionSet(DOWNLOAD_LONGNAME)) && !this.isParameterProvided(METADATATARGETDIR_LONGNAME)) {
+            System.out.println("No directory provided as download destination, will default to current directory");
+            this.parameters.put(METADATATARGETDIR_LONGNAME, ".");
+        }     
+        
+        // set maxitems to default value if nothing provided
+        if (!this.isParameterProvided(MAXITEMS_LONGNAME)) {
+            //System.out.println("No maxitems parameter provided, will default to " + PackageBuilder.MAXITEMSINPACKAGE + ".");
+            this.parameters.put(MAXITEMS_LONGNAME, String.valueOf(PackageBuilder.MAXITEMSINPACKAGE));
+        } 
+        
+        ////////////////////////////////////////////////////////////////////////
+        //
+        // now check that we have minimum parameters needed to run
+        //
+        ////////////////////////////////////////////////////////////////////////
+          
+        // check that we have the minimum parameters
+        // either b(asedir) and d(estinationdir)
+        // or s(f_url), p(assword), u(sername)
 
-            // GIT needs download and changedata
-            if (gitCommit) {
-                download = true;
-                this.parameters.put(INCLUDECHANGEDATA_LONGNAME, "true");
-                this.parameters.put(DOWNLOAD_LONGNAME, "true");
-            }
-            
-            if (download && !this.isParameterProvided(METADATATARGETDIR_LONGNAME)) {
-                System.out.println("No directory provided as download destination, will default to current directory");
-                this.parameters.put(METADATATARGETDIR_LONGNAME, ".");
-            }        
-            
-            if (!this.isParameterProvided(MAXITEMS_LONGNAME)) {
-                System.out.println("No maxitems parameter provided, will default to " + PackageBuilder.MAXITEMSINPACKAGE + ".");
-                this.parameters.put(MAXITEMS_LONGNAME, String.valueOf(PackageBuilder.MAXITEMSINPACKAGE));
-            } 
-
-            // check that we have the minimum parameters
-            // either b(asedir) and d(estinationdir)
-            // or s(f_url), p(assword), u(sername), mi(metadataitems)
-
-            if (this.isParameterProvided(BASEDIRECTORY_LONGNAME) &&
-                    this.isParameterProvided(DESTINATION_LONGNAME)) {
+        if (this.isParameterProvided(BASEDIRECTORY_LONGNAME) && this.isParameterProvided(DESTINATION_LONGNAME)) {
+            canProceed = true;
+        } else {
+            if (this.isParameterProvided(SERVERURL_LONGNAME) &&
+                this.isParameterProvided(USERNAME_LONGNAME) &&
+                this.isParameterProvided(PASSWORD_LONGNAME)) {
                 canProceed = true;
             } else {
-                if (this.isParameterProvided(SERVERURL_LONGNAME) &&
-                        this.isParameterProvided(USERNAME_LONGNAME) &&
-                        this.isParameterProvided(PASSWORD_LONGNAME)
-
-                ) {
-                    canProceed = true;
-                } else {
-                    System.out.println("Mandatory parameters not provided in files or commandline -"
-                            + " either basedir and destination or serverurl, username, password and metadataitems required as minimum");
-                    System.out.println("Visible parameters:");
-                    for (final String key : this.parameters.keySet()) {
-                        System.out.println(key + ":" + this.parameters.get(key));
-                    }
+                System.out.println("Mandatory parameters not provided in files or commandline -"
+                        + " either basedir and destination or serverurl, username and password required as minimum");
+                System.out.println("Visible parameters:");
+                for (final String key : this.parameters.keySet()) {
+                    System.out.println(key + ":" + this.parameters.get(key));
                 }
             }
+        }
+        
+        for (final String key : this.parameters.keySet()) {
+            System.out.println(key + ":" + this.parameters.get(key));
+        }
 
-            for (final String key : this.parameters.keySet()) {
-                System.out.println(key + ":" + this.parameters.get(key));
-            }
-
-            if (!canProceed) {
-                this.printHelp();
-
-            }
-        } else {
+        if (!canProceed) {
             this.printHelp();
         }
-
         return canProceed;
-    }
-
-    private boolean addBooleanParameter(final CommandLine line, final String optionName, final String paramName) {
-        boolean result = false;
-        if (line.hasOption(optionName)) {
-            this.parameters.put(paramName, "true");
-            result = true;
-        }
-        return result;
     }
 
     /**
@@ -307,6 +300,23 @@ public class PackageBuilderCommandLine {
             this.parameters.put(paramName, props.getProperty(propName));
         }
     }
+    
+    private boolean addBooleanParameter(final CommandLine line, final String optionName, final String paramName) {
+        boolean result = false;
+        if (line.hasOption(optionName)) {
+            this.parameters.put(paramName, "true");
+            result = true;
+        }
+        return result;
+    }
+    
+    private void addBooleanParameterFromProperty(final Properties props, final String propName) {
+        // Some properties start with "sf.", but we only use the name behind
+        final String paramName = (propName.startsWith("sf.")) ? propName.substring(3) : propName;
+        if (props.getProperty(propName) != null) {
+            this.parameters.put(paramName, "true");
+        }
+    }
 
     // wraps the generations/fetching of an org id for database purposes
 
@@ -314,6 +324,10 @@ public class PackageBuilderCommandLine {
         return ((this.parameters.get(parameterName) != null) && (this.parameters.get(parameterName).length() > 0));
     }
 
+    private boolean isOptionSet(final String parameterName) {
+        return (this.parameters.get(parameterName) != null);
+    }
+    
     // returns a database - either one we could read from file, or a newly
     // initialized one
 
