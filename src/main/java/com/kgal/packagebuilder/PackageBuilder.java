@@ -727,13 +727,13 @@ public class PackageBuilder {
 				// <members>Update_Campaign_path_on_oppty-4</members>
 				// <members>Update_Campaign_path_on_oppty-5</members>
 
-				if (mdType.toLowerCase().equals("flow") && PackageBuilder.FILTERVERSIONLESSFLOWS) {
-					if (!item.itemName.contains("-")) {
-						// we won't count this one as skipped, since it
-						// shouldn't be there in the first place
-						continue;
-					}
-				}
+//				if (mdType.toLowerCase().equals("flow") && PackageBuilder.FILTERVERSIONLESSFLOWS) {
+//					if (!item.itemName.contains("-")) {
+//						// we won't count this one as skipped, since it
+//						// shouldn't be there in the first place
+//						continue;
+//					}
+//				}
 				myFile.get(mdType).add(item);
 				itemCount++;
 			}
