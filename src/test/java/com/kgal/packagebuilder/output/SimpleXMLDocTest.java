@@ -21,13 +21,13 @@ public class SimpleXMLDocTest {
         this.doc = new SimpleXMLDoc();
         this.expectedResult = "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"no\"?>\n"+
         "<root xmlns=\"http://demo.org/\">\n"+
-        "  <empty/>\n"+
-        "  <simple>value</simple>\n"+
-        "  <empty2 color=\"red\" shape=\"circle\"/>\n"+
-        "  <simple2 color=\"red\" shape=\"circle\">value2</simple2>\n"+
-        "  <inner color=\"red\" shape=\"circle\">\n"+
-        "    <innerEmpty/>\n"+
-        "  </inner>\n"+
+        "    <empty/>\n"+
+        "    <simple>value</simple>\n"+
+        "    <empty2 color=\"red\" shape=\"circle\"/>\n"+
+        "    <simple2 color=\"red\" shape=\"circle\">value2</simple2>\n"+
+        "    <inner color=\"red\" shape=\"circle\">\n"+
+        "        <innerEmpty/>\n"+
+        "    </inner>\n"+
         "</root>\n";
 
     }

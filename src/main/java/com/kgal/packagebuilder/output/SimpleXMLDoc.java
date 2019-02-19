@@ -210,7 +210,7 @@ public class SimpleXMLDoc {
         serializer.setOutputProperty(OutputKeys.ENCODING, "UTF-8");
         serializer.setOutputProperty(OutputKeys.METHOD, "xml");
         serializer.setOutputProperty(OutputKeys.INDENT, "yes");
-        serializer.setOutputProperty("{http://xml.apache.org/xslt}indent-amount", "2");
+        serializer.setOutputProperty("{http://xml.apache.org/xslt}indent-amount", "4");
         this.hd.setResult(this.domresult);
         this.hd.startDocument();
         this.documentStarted = true;
