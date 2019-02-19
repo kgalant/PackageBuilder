@@ -80,7 +80,8 @@
 								</transformer>
 							</transformers>
 							<artifactSet />
-							<outputFile>${project.basedir}/${project.artifactId}.jar</outputFile>
+							<!--  outputFile>${project.basedir}/${project.artifactId}.jar</outputFile -->
+							<outputFile>/Users/swissel/bin/${project.artifactId}.jar</outputFile>
 						</configuration>
 					</execution>
 				</executions>

@@ -169,7 +169,7 @@ public class PackageBuilder {
             this.generateInventoryFromOrg(inventory);
             this.mode = OperationMode.ORG;
         }
-        final HashMap<String, ArrayList<InventoryItem>>[] actualInventory = this.generatePackageXML(inventory);
+        final Map<String,Map<String, ArrayList<InventoryItem>>> actualInventory = this.generatePackageXML(inventory);
 
         if (this.gitCommit) {
             final GitOutputManager gom = new GitOutputManager(this.parameters);
@@ -177,14 +177,16 @@ public class PackageBuilder {
         }
     }
 
-    private HashMap<String, ArrayList<InventoryItem>>[] breakPackageIntoFiles(
+    private Map<String,Map<String, ArrayList<InventoryItem>>> breakPackageIntoFiles(
             final HashMap<String, ArrayList<InventoryItem>> myFile) {
 
-        final ArrayList<HashMap<String, ArrayList<InventoryItem>>> files = new ArrayList<>();
+        final Map<String,Map<String, ArrayList<InventoryItem>>> files = new HashMap<>();
         int fileIndex = 0;
         int fileCount = 0;
         HashMap<String, ArrayList<InventoryItem>> currentFile = new HashMap<>();
+            
         for (final String mdType : myFile.keySet()) {
+            String packageFileName = "package.xml";
             final ArrayList<InventoryItem> mdTypeList = myFile.get(mdType);
             final int mdTypeSize = mdTypeList.size();
 
@@ -207,7 +209,8 @@ public class PackageBuilder {
                         "Adding type: " + mdType + "(" + mdTypeListPartial.size() + " items) to file " + fileIndex
                                 + ", total count now: "
                                 + fileCount);
-                files.add(currentFile);
+                packageFileName = (fileIndex==0) ? "package.xml" : "package."+String.valueOf(fileIndex)+".xml";
+                files.put(packageFileName,currentFile);
 
                 // finish and start new file
 
@@ -229,7 +232,8 @@ public class PackageBuilder {
                         mdTypeList.subList(0, this.maxItemsInRegularPackage));
                 currentFile.put(mdType, mdTypeListPartial);
                 fileCount += mdTypeListPartial.size();
-                files.add(currentFile);
+                packageFileName = (fileIndex==0) ? "package.xml" : "package."+String.valueOf(fileIndex)+".xml";
+                files.put(packageFileName,currentFile);
                 currentFile = new HashMap<>();
                 mdTypeList.removeAll(mdTypeListPartial);
                 this.logger.log(Level.FINE,
@@ -252,16 +256,11 @@ public class PackageBuilder {
         }
 
         // finish off any last file
-        files.add(currentFile);
+        String packageFileName = (fileIndex==0) ? "package.xml" : "package."+String.valueOf(fileIndex)+".xml";
+        files.put(packageFileName,currentFile);
         this.logger.log(Level.FINE, "Finished composing file " + fileIndex + ", total count: " + fileCount + "items.");
 
-        @SuppressWarnings("unchecked")
-        HashMap<String, ArrayList<InventoryItem>>[] retval = new HashMap[files
-                .size()];
-
-        retval = files.toArray(retval);
-
-        return retval;
+        return files;
     }
 
     // this method reads in any old database that may exist that matches the org
@@ -668,8 +667,8 @@ public class PackageBuilder {
 
     }
 
-    private HashMap<String, ArrayList<InventoryItem>>[] generatePackageXML(
-            final HashMap<String, ArrayList<InventoryItem>> inventory)
+    private Map<String,Map<String, ArrayList<InventoryItem>>> generatePackageXML(
+            final Map<String, ArrayList<InventoryItem>> inventory)
             throws Exception {
 
         int itemCount = 0;
@@ -744,12 +743,11 @@ public class PackageBuilder {
         }
 
         // now check if anything we have needs to be skipped
-
         skipCount = this.handleSkippingItems(myFile);
 
         // now break it up into files if needed
 
-        final HashMap<String, ArrayList<InventoryItem>>[] files = this.breakPackageIntoFiles(myFile);
+        final Map<String, Map<String, ArrayList<InventoryItem>>> files = this.breakPackageIntoFiles(myFile);
 
         // if we're writing change telemetry into the package.xml, need to get
         // user emails now
@@ -758,30 +756,29 @@ public class PackageBuilder {
         }
 
         // USE THREADS TO speed things up
-        final int totalFiles = files.length;
+        //final int totalFiles = files.size();
         final ExecutorService WORKER_THREAD_POOL = Executors.newFixedThreadPool(PackageBuilder.CONCURRENT_THREADS);
 
         final Collection<PackageAndFilePersister> allPersisters = new ArrayList<>();
 
         // Write out a complete version of the package,xml for later
         // mdapi:convert operations
+        //TODO: Do we actually need this?
         final PackageAndFilePersister completePackageXML = new PackageAndFilePersister(this.myApiVersion,
                 this.targetDir,
                 this.metaSourceDownloadDir,
                 myFile,
-                "packageComplete.xml", 9999,
+                "packageComplete.xml",
                 false, false, false, this.srcMetadataConnection);
         allPersisters.add(completePackageXML);
-
+        // End of todo
+        
         // Add all XML Files to the download queue
-        for (int i = 0; i < totalFiles; i++) {
-            final String curFileName = (i == 0)
-                    ? "package.xml"
-                    : "package." + i + ".xml";
+        files.forEach((curFileName, members) -> {
             final PackageAndFilePersister pfp = new PackageAndFilePersister(this.myApiVersion,
                     this.targetDir,
                     this.metaSourceDownloadDir,
-                    files[i], curFileName, i,
+                    members, curFileName,
                     this.includeChangeData,
                     this.downloadData,
                     this.unzipDownload,
@@ -790,7 +787,7 @@ public class PackageBuilder {
                 pfp.setLocalOnly();
             }
             allPersisters.add(pfp);
-        }
+        });
 
         WORKER_THREAD_POOL.invokeAll(allPersisters).stream().map(future -> {
             String result = null;
@@ -917,6 +914,8 @@ public class PackageBuilder {
             }
         }
 
+        Collection<String> morituri = new ArrayList<>();
+        
         for (final String mdType : myFile.keySet()) {
             // first, check if any of the patterns match the whole type
             String mdTypeFullName = mdType + ":";
@@ -931,29 +930,39 @@ public class PackageBuilder {
                     // remove the whole key from the file
 
                     skipCount += myFile.get(mdType).size();
-
-                    myFile.remove(mdType);
+                    morituri.add(mdType);                
                     continue;
 
                 }
             }
 
             final ArrayList<InventoryItem> items = myFile.get(mdType);
-            Collections.sort(items, (o1, o2) -> o1.itemName.compareTo(o2.itemName));
-            for (int i = 0; i < items.size(); i++) {
-                mdTypeFullName = mdType + ":" + items.get(i).itemName;
-                for (final Pattern p : this.skipPatterns) {
-                    final Matcher m = p.matcher(mdTypeFullName);
-                    if (m.matches()) {
-                        this.logger.log(Level.FINE,
-                                "Skip pattern: " + p.pattern() + " matches the metadata item: " + mdTypeFullName
-                                        + ", item will be skipped.");
-                        items.remove(i);
-                        skipCount++;
+            if (items != null) {
+                // Run through the collection in reverse order
+                // so not to run out of i when an item is removed
+                for (int i = items.size()-1; i> -1; i--) {
+                    mdTypeFullName = mdType + ":" + items.get(i).itemName;
+                    for (final Pattern p : this.skipPatterns) {
+                        final Matcher m = p.matcher(mdTypeFullName);
+                        if (m.matches()) {
+                            this.logger.log(Level.FINE,
+                                    "Skip pattern: " + p.pattern() + " matches the metadata item: " + mdTypeFullName
+                                            + ", item will be skipped.");
+                            items.remove(i);
+                            skipCount++;
+                        }
                     }
                 }
+                // Sort the survivors only
+                Collections.sort(items, (o1, o2) -> o1.itemName.compareTo(o2.itemName));
             }
         }
+        
+        // Remove full items
+        morituri.forEach(m -> {
+            myFile.remove(m);
+        });
+        
         return skipCount;
     }
 

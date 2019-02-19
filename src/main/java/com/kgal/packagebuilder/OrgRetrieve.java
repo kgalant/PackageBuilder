@@ -47,7 +47,6 @@ public class OrgRetrieve {
     // manifest file that controls which components get retrieved
     private String manifestFile;
     private double apiVersion    = 45.0;
-    private int    packageNumber = 1;
 
     // what to retrieve if not based on package.xml file
 
@@ -132,10 +131,6 @@ public class OrgRetrieve {
         this.metadataConnection = metadataConnection;
     }
 
-    public void setPackageNumber(final int packageNumber) {
-        this.packageNumber = packageNumber;
-    }
-
     public void setSecondsBetweenPolls(final int secondsBetweenPolls) {
         this.secondsBetweenPolls = secondsBetweenPolls;
     }
@@ -159,7 +154,7 @@ public class OrgRetrieve {
         }
 
         this.logger.log(Level.FINE, "API version for retrieve will be " + this.apiVersion);
-        this.logger.log(Level.FINE, "Package running number will be " + this.packageNumber);
+        this.logger.log(Level.FINE, "Package will be pulled into " + this.zipFile);
         this.logger.log(Level.FINE, "Poll interval for retrieve will be " + this.secondsBetweenPolls +
                 ", max number of polls: " + this.maxPolls);
         return true;
@@ -262,7 +257,7 @@ public class OrgRetrieve {
             }
             result = this.metadataConnection.checkRetrieveStatus(asyncResultId, true);
             System.out.println(
-                    String.valueOf(poll) + "/" + String.valueOf(this.maxPolls) + " Package " + this.packageNumber
+                    String.valueOf(poll) + "/" + String.valueOf(this.maxPolls) + " Package " + this.zipFile
                             + " Status: " + result.getStatus());
         } while (!result.isDone());
 

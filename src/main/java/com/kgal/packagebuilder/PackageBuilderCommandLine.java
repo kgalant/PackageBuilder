@@ -127,11 +127,11 @@ public class PackageBuilderCommandLine {
         // adding handling for building a package from a directory
         this.parameters.put(BASEDIRECTORY_LONGNAME, null);
 
-        final HashSet<String> nonMandatoryParams = new HashSet<>();
-        nonMandatoryParams.add("skipItems");
+        //final HashSet<String> nonMandatoryParams = new HashSet<>();
+        //nonMandatoryParams.add("skipItems");
         
         //added for maxitems
-        nonMandatoryParams.add("skipItems");
+        //nonMandatoryParams.add("skipItems");
 
         final CommandLineParser parser = new DefaultParser();
         CommandLine line = null;

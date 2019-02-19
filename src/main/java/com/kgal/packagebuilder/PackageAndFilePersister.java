@@ -49,9 +49,8 @@ public class PackageAndFilePersister implements Callable<PersistResult> {
 
     private final Logger logger = Logger.getLogger(Logger.GLOBAL_LOGGER_NAME);
 
-    private final HashMap<String, ArrayList<InventoryItem>> theMap;
+    private final Map<String, ArrayList<InventoryItem>> theMap;
     private final String                                    filename;
-    private final int                                       packageNumber;
     private final boolean                                   includeChangeData;
     private final boolean                                   downloadData;
     private final boolean                                   unzipDownload;
@@ -67,9 +66,9 @@ public class PackageAndFilePersister implements Callable<PersistResult> {
     public PackageAndFilePersister(final double myApiVersion,
             final String targetDir,
             final String metaSourceDownloadDir,
-            final HashMap<String, ArrayList<InventoryItem>> theMap,
+            final Map<String, ArrayList<InventoryItem>> theMap,
             final String filename,
-            final int packageNumber, final boolean includeChangeData, final boolean download,
+            final boolean includeChangeData, final boolean download,
             final boolean unzip,
             final MetadataConnection metadataConnection) {
         this.myApiVersion = myApiVersion;
@@ -77,7 +76,6 @@ public class PackageAndFilePersister implements Callable<PersistResult> {
         this.metaSourceDownloadDir = metaSourceDownloadDir;
         this.theMap = theMap;
         this.filename = filename;
-        this.packageNumber = packageNumber;
         this.includeChangeData = includeChangeData;
         this.downloadData = download;
         this.unzipDownload = unzip;
@@ -167,7 +165,6 @@ public class PackageAndFilePersister implements Callable<PersistResult> {
             myRetrieve.setZipFile(zipFileName);
             myRetrieve.setManifestFile(this.targetDir + this.filename);
             myRetrieve.setApiVersion(this.myApiVersion);
-            myRetrieve.setPackageNumber(this.packageNumber);
             myRetrieve.retrieveZip();
         }
 

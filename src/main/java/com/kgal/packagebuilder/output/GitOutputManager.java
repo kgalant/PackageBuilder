@@ -57,7 +57,7 @@ public class GitOutputManager {
 
     }
 
-    public void commitToGit(final HashMap<String, ArrayList<InventoryItem>>[] actualInventory)
+    public void commitToGit(final Map<String, Map<String, ArrayList<InventoryItem>>> actualInventory)
             throws IOException, NoFilepatternException, GitAPIException {
 
         final Git git = Git.open(gitPath.getAbsoluteFile());
@@ -165,10 +165,10 @@ public class GitOutputManager {
      * @return flat map
      */
     private Map<String, InventoryItem> flattenInventoryMap(
-            final HashMap<String, ArrayList<InventoryItem>>[] actualInventory) {
+            final Map<String, Map<String, ArrayList<InventoryItem>>> actualInventory) {
         Map<String, InventoryItem> result = new HashMap<>();
-        for (int i = 0; i < actualInventory.length; i++) {
-            HashMap<String, ArrayList<InventoryItem>> curInv = actualInventory[i];
+
+        actualInventory.forEach((fileName, curInv) -> {
             curInv.entrySet().forEach(item -> {
                 try {
                     String dirPrefix = Utils.getDirForMetadataType(item.getKey());
@@ -180,7 +180,7 @@ public class GitOutputManager {
                     e.printStackTrace();
                 }
             });
-        }
+        });
         return result;
     }
 
