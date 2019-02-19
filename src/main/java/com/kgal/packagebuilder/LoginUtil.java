@@ -77,22 +77,6 @@ public class LoginUtil {
         return conn;
     }
 
-    public static ToolingConnection toolingLogin(final String url, final String user, final String pwd)
-            throws ConnectionException {
-
-        final PartnerConnection conn = LoginUtil.soapLogin(url, user, pwd);
-
-        final LoginResult lr = conn.login(user, pwd);
-
-        final ConnectorConfig toolingConfig = new ConnectorConfig();
-        toolingConfig.setSessionId(lr.getSessionId());
-        toolingConfig.setServiceEndpoint(lr.getServerUrl().replace('u', 'T'));
-
-        final ToolingConnection toolingConnection = com.sforce.soap.tooling.Connector.newConnection(toolingConfig);
-
-        return toolingConnection;
-    }
-
     private static MetadataConnection createMetadataConnection(final LoginResult loginResult)
             throws ConnectionException {
         final ConnectorConfig config = new ConnectorConfig();
