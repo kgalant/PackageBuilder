@@ -263,15 +263,15 @@ public class PackageBuilderCommandLine {
             } else {
                 System.out.println("Mandatory parameters not provided in files or commandline -"
                         + " either basedir and destination or serverurl, username and password required as minimum");
-                System.out.println("Visible parameters:");
-                for (final String key : this.parameters.keySet()) {
-                    System.out.println(key + ":" + this.parameters.get(key));
-                }
             }
         }
         
         for (final String key : this.parameters.keySet()) {
-            System.out.println(key + ":" + this.parameters.get(key));
+        	if (key.equals("password")) {
+        		System.out.println(key + ":" + this.parameters.get(key).replaceAll(".", "*"));
+        	} else {
+                System.out.println(key + ":" + this.parameters.get(key));
+        	}
         }
 
         if (!canProceed) {
