@@ -2,6 +2,8 @@ package com.kgal.packagebuilder;
 
 import java.io.File;
 import java.io.IOException;
+import java.io.StringWriter;
+import java.io.Writer;
 import java.rmi.RemoteException;
 import java.sql.Date;
 import java.text.SimpleDateFormat;
@@ -19,7 +21,18 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.regex.PatternSyntaxException;
 
+import javax.xml.parsers.DocumentBuilder;
+import javax.xml.parsers.DocumentBuilderFactory;
+import javax.xml.transform.OutputKeys;
+import javax.xml.transform.Transformer;
+import javax.xml.transform.TransformerFactory;
+import javax.xml.transform.dom.DOMSource;
+import javax.xml.transform.stream.StreamResult;
+
 import org.apache.commons.lang3.ArrayUtils;
+import org.w3c.dom.Comment;
+import org.w3c.dom.Document;
+import org.w3c.dom.Element;
 
 import com.kgal.packagebuilder.inventory.InventoryItem;
 import com.kgal.packagebuilder.output.GitOutputManager;
@@ -1230,13 +1243,20 @@ public class PackageBuilder {
 			throws Exception {
 
 		final SimpleDateFormat format1 = new SimpleDateFormat(PackageBuilder.DEFAULT_DATE_FORMAT);
+		
+		DocumentBuilderFactory documentFactory = DocumentBuilderFactory.newInstance();
+		 
+        DocumentBuilder documentBuilder = documentFactory.newDocumentBuilder();
 
-		final SimpleXMLDoc packageXML = new SimpleXMLDoc();
-		packageXML.openTag("Package", "xmlns", "http://soap.sforce.com/2006/04/metadata");
-
+        Document document = documentBuilder.newDocument();
+        
+        Element root = document.createElement("Package");
+        root.setAttribute("xmlns","http://soap.sforce.com/2006/04/metadata");
+        document.appendChild(root);
+        
 		final ArrayList<String> mdTypes = new ArrayList<>(theMap.keySet());
 		Collections.sort(mdTypes);
-		
+        
 		// get list of types for comment line
 		ArrayList<String> typesInPackage = new ArrayList<String>();
 		for (final String mdType : mdTypes) {
@@ -1246,32 +1266,53 @@ public class PackageBuilder {
 				typesInPackage.add(mdType + "(" + theMap.get(mdType).size() + ")");
 			}
 		}
+        
+		String[] typesArray = new String[typesInPackage.size()];
+		
+		typesArray = typesInPackage.toArray(typesArray);
+		
+        Comment comment = document.createComment("Types packaged: " + String.join(", ", typesArray));
+        root.appendChild(comment);
 
+        Element version = document.createElement("version");
+        version.setTextContent(String.valueOf(this.myApiVersion));
+        root.appendChild(version);
+        
 		for (final String mdType : mdTypes) {
 			if (theMap.get(mdType).size() == 0) {
 				continue;
 			}
-			packageXML.openTag("types");
-			packageXML.addTag("name", mdType);
+			
+			Element types = document.createElement("types");
+			root.appendChild(types);
+			Element name = document.createElement("name");
+			name.setTextContent(mdType);
+			types.appendChild(name);
 
 			for (final InventoryItem item : theMap.get(mdType)) {
+				
+				Element member = document.createElement("members");
+				member.setTextContent(item.itemName);
 
-				Map<String, String> attributes = null;
 				if (this.includeChangeData) {
-					attributes = new HashMap<>();
-					attributes.put("lastmodifiedby", item.getLastModifiedByName());
-					attributes.put("lastmodified", format1.format(item.getLastModifiedDate() == null ? 0 : item.getLastModifiedDate().getTime()));
-					attributes.put("lastmodifiedemail", item.lastModifiedByEmail);
+					member.setAttribute("lastmodifiedby", item.getLastModifiedByName());
+					member.setAttribute("lastmodified", format1.format(item.getLastModifiedDate() == null ? 0 : item.getLastModifiedDate().getTime()));
+					member.setAttribute("lastmodifiedemail", item.lastModifiedByEmail);
 				}
-
-				packageXML.addTag("members", item.itemName, attributes);
+				types.appendChild(member);
 			}
-			packageXML.closeTag(1);
 		}
-		packageXML.addTag("version", String.valueOf(this.myApiVersion));
-		packageXML.closeDocument();
 
-		Utils.writeFile(this.targetDir + filename, packageXML.toString());
+		
+		Transformer tf = TransformerFactory.newInstance().newTransformer();
+        tf.setOutputProperty(OutputKeys.ENCODING, "UTF-8");
+        tf.setOutputProperty(OutputKeys.INDENT, "yes");
+        tf.setOutputProperty(OutputKeys.METHOD, "xml");
+        tf.setOutputProperty("{http://xml.apache.org/xslt}indent-amount", "4");
+        Writer out = new StringWriter();
+        tf.transform(new DOMSource(document), new StreamResult(out));
+
+		Utils.writeFile(this.targetDir + filename, out.toString());
 		this.log("Writing " + new File(this.targetDir + filename).getCanonicalPath(), Loglevel.BRIEF);
 
 		if (downloadData) {
