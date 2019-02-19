@@ -112,7 +112,7 @@ public class PackageBuilder {
 			"TaskSubject", "TaskType",
 			"WorkOrderLineItemStatus", "WorkOrderPriority", "WorkOrderStatus" };
 	
-	private static final String[] ADDITIONALTYPESTOADD = new String[] { "CustomLabel",
+	private static final String[] ADDITIONALTYPESTOADD = new String[] { "CustomLabel", "AssignmentRule",
 			"BusinessProcess","CompactLayout","CustomField","FieldSet","Index","ListView","NamedFilter","RecordType","SharingReason","ValidationRule","WebLink", // CustomObject components
 			"WorkflowActionReference","WorkflowAlert","WorkflowEmailRecipient","WorkflowFieldUpdate","WorkflowFlowAction","WorkflowFlowActionParameter", 		// Workflow components
 			"WorkflowKnowledgePublish","WorkflowOutboundMessage","WorkflowRule","WorkflowTask","WorkflowTimeTrigger"											// Workflow components
