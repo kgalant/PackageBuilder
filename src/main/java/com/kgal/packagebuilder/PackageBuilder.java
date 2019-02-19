@@ -870,6 +870,12 @@ public class PackageBuilder {
 				typesToFetch.add(manualType.trim());
 			}
 			
+			// check API version - in 45+, remove FlowDefinition
+			
+			if (Double.valueOf(this.parameters.get(PackageBuilderCommandLine.APIVERSION_LONGNAME)) >= 45) {
+				typesToFetch.remove("FlowDefinition");
+			}
+			
 		}
 		return typesToFetch;
 	}
