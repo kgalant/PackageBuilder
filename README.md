@@ -37,6 +37,8 @@ output verbose logging instead of just core output
 include data on who last changed the item directly in the members tag of every item of the package.xml
 * -mx,--maxitems `<arg>`    
 max number of items to put into a single package.xml (10000 is current max enforced by SF platform, for API 33 and higher, 5000 before)
+* -do,--download
+execute a retrieve from the org using the generated package(s)
 
 #### Filtering what goes in the package
 
