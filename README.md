@@ -58,7 +58,7 @@ email patterns to skip when fetching
 * -su,--skipusername `<arg>`    
 user name patterns to skip when fetching. 
 * -iu,--includeusername `<arg>`    
-user name patterns to skip when fetching
+user name patterns to include when fetching
 
 This filter works against the email/name of the user who is the last to have modified a given item.
 
