@@ -22,8 +22,19 @@ import java.util.Vector;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 import java.util.zip.ZipOutputStream;
+
+import javax.xml.transform.OutputKeys;
+import javax.xml.transform.Transformer;
+import javax.xml.transform.TransformerFactory;
+import javax.xml.transform.dom.DOMSource;
+import javax.xml.transform.stream.StreamResult;
+import javax.xml.xpath.XPath;
+import javax.xml.xpath.XPathConstants;
+import javax.xml.xpath.XPathFactory;
+
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.filefilter.TrueFileFilter;
+import org.w3c.dom.Document;
 import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
 
@@ -97,6 +108,40 @@ public class Utils {
 		}
 
 		return true;
+	}
+	
+	public static boolean writeXMLFile(Document document, String targetFilename) {
+		try {
+			// first, clean up any uneeded whitespace
+			
+			document.normalize();
+			XPath xPath = XPathFactory.newInstance().newXPath();
+			NodeList nodeList = (NodeList) xPath.evaluate("//text()[normalize-space()='']",
+					document,
+					XPathConstants.NODESET);
+
+			for (int i = 0; i < nodeList.getLength(); ++i) {
+				Node node = nodeList.item(i);
+				node.getParentNode().removeChild(node);
+			}
+			
+			// now convert and write
+			
+			Transformer tf = TransformerFactory.newInstance().newTransformer();
+			tf.setOutputProperty(OutputKeys.ENCODING, "UTF-8");
+			tf.setOutputProperty(OutputKeys.INDENT, "yes");
+			tf.setOutputProperty(OutputKeys.METHOD, "xml");	
+			tf.setOutputProperty("{http://xml.apache.org/xslt}indent-amount", "4");
+			Writer out = new StringWriter();
+			tf.transform(new DOMSource(document), new StreamResult(out));		
+
+			Utils.writeFile(targetFilename, out.toString());
+			return true;
+		} catch (Exception e) {
+			System.out.println("Something went wrong writing XML file " + targetFilename);
+			System.out.println(e.getMessage());
+		}
+		return false;
 	}
 
 	public static boolean writeFile(String filename, ArrayList<String> toWrite) {
@@ -228,15 +273,16 @@ public class Utils {
 		bufferWriter.close();
 	}
 
-	public static void unzip(String zipFile, String outputFolder) {
+	public static File unzip(String zipFile, String outputFolder) {
 
 		byte[] buffer = new byte[1024];
+		File folder = null;
 
 		try {
 
 			// create output directory if it doesn't exist
 
-			File folder = new File(outputFolder);
+			folder = new File(outputFolder);
 			if (!folder.exists()) {
 				folder.mkdir();
 			}
@@ -274,11 +320,12 @@ public class Utils {
 			zis.closeEntry();
 			zis.close();
 
-			System.out.println("Done unzipping " + zipFile + " to folder " + outputFolder);
+			//System.out.println("Done unzipping " + zipFile + " to folder " + outputFolder);
 
 		} catch (IOException ex) {
 			ex.printStackTrace();
 		}
+		return folder;
 	}
 
 	public static void callAnt(String target, String[] params, String buildXmlDir, String pathToAnt) throws IOException, InterruptedException {
