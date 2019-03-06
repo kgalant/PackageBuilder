@@ -5,7 +5,6 @@ import java.util.Properties;
 import com.sforce.soap.metadata.MetadataConnection;
 import com.sforce.soap.partner.LoginResult;
 import com.sforce.soap.partner.PartnerConnection;
-import com.sforce.soap.tooling.ToolingConnection;
 import com.sforce.ws.ConnectionException;
 import com.sforce.ws.ConnectorConfig;
 
