@@ -34,9 +34,9 @@ import org.w3c.dom.Comment;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 
+import com.kgal.migrationtoolutils.Utils;
 import com.kgal.packagebuilder.inventory.InventoryItem;
 import com.kgal.packagebuilder.output.GitOutputManager;
-import com.salesforce.migrationtoolutils.Utils;
 import com.sforce.soap.metadata.DescribeMetadataObject;
 import com.sforce.soap.metadata.DescribeMetadataResult;
 import com.sforce.soap.metadata.FileProperties;

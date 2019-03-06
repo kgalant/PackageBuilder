@@ -28,10 +28,10 @@ import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
 import org.xml.sax.SAXException;
 
+import com.kgal.migrationtoolutils.Utils;
 import com.kgal.packagebuilder.OrgRetrieve.Loglevel;
 import com.kgal.packagebuilder.profilecompare.TagComparer;
 import com.kgal.packagebuilder.profilecompare.UserPermissionsComparer;
-import com.salesforce.migrationtoolutils.Utils;
 
 public class ProfileCompare {
 

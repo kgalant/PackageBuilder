@@ -1,4 +1,4 @@
-package com.salesforce.migrationtoolutils;
+package com.kgal.migrationtoolutils;
 
 import java.io.*;
 import java.nio.charset.StandardCharsets;

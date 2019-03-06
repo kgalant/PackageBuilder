@@ -1,10 +1,6 @@
 package com.kgal.packagebuilder;
 
 import java.io.*;
-import java.nio.channels.Channels;
-import java.nio.channels.FileChannel;
-import java.nio.channels.ReadableByteChannel;
-import java.rmi.RemoteException;
 import java.util.*;
 
 import javax.xml.parsers.*;
@@ -12,7 +8,6 @@ import javax.xml.parsers.*;
 import org.w3c.dom.*;
 import org.xml.sax.SAXException;
 
-import com.kgal.packagebuilder.PackageBuilder.Loglevel;
 import com.kgal.packagebuilder.inventory.InventoryItem;
 import com.sforce.soap.metadata.*;
 

@@ -28,11 +28,6 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
 
-//import org.eclipse.jgit.api.Git;
-//import org.eclipse.jgit.api.errors.GitAPIException;
-//import org.eclipse.jgit.api.errors.NoFilepatternException;
-//import org.eclipse.jgit.lib.PersonIdent;
-
 import com.kgal.packagebuilder.inventory.InventoryItem;
 
 /**

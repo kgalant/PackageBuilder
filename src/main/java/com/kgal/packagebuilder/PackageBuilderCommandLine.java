@@ -34,7 +34,7 @@ import org.apache.commons.cli.Option;
 import org.apache.commons.cli.Options;
 import org.apache.commons.cli.ParseException;
 
-import com.salesforce.migrationtoolutils.Utils;
+import com.kgal.migrationtoolutils.Utils;
 
 /**
  * Command line and parameter frontend for package builder core application
@@ -213,7 +213,7 @@ public class PackageBuilderCommandLine {
 		this.addCmdlineParameter(line, BASEDIRECTORY, BASEDIRECTORY_LONGNAME);
 
 		// add handling for stripping userPermissions from Profiles
-		this.addCmdlineParameter(line, STRIPUSERPERMISSIONS, STRIPUSERPERMISSIONS_LONGNAME);
+		this.addBooleanParameter(line, STRIPUSERPERMISSIONS, STRIPUSERPERMISSIONS_LONGNAME);
 
 		////////////////////////////////////////////////////////////////////////
 		//
