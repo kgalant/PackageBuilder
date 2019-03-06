@@ -1327,7 +1327,7 @@ public class PackageBuilder {
 			
 			if (this.parameters.containsKey(PackageBuilderCommandLine.STRIPUSERPERMISSIONS_LONGNAME) &&
 					theMap.containsKey("Profile")) {
-				this.log("Asked to strip user permissions from Profiles - will do so now.", Loglevel.NORMAL);
+				this.log("Asked to strip user permissions from Profiles - will do so now.", Loglevel.BRIEF);
 				ProfileCompare pc = new ProfileCompare(ProfileCompare.Loglevel.VERBOSE);
 				pc.stripUserPermissionsFromProfiles(filename.replace("xml", "zip"));
 				
