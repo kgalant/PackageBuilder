@@ -95,11 +95,12 @@ public class OrgRetrieve {
 				}
 			}
 			if (stringBuilder.length() > 0) {
-				System.out.println("Retrieve warnings:\n" + stringBuilder);
+				this.log("Retrieve warnings:\n" + stringBuilder, Loglevel.NORMAL);
 			}
 
-			System.out.println("Writing results to zip file");
+			
 			File resultsFile = new File(zipFile);
+			this.log("Writing results to zip file: " + resultsFile.getAbsolutePath(), Loglevel.BRIEF);
 			FileOutputStream os = new FileOutputStream(resultsFile);
 
 			try {

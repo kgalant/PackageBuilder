@@ -1323,6 +1323,15 @@ public class PackageBuilder {
 			myRetrieve.setApiVersion(myApiVersion);
 			myRetrieve.setPackageNumber(packageNumber);
 			myRetrieve.retrieveZip();
+			this.log("Asked to retrieve this package from org - will do so now.", Loglevel.BRIEF);
+			
+			if (this.parameters.containsKey(PackageBuilderCommandLine.STRIPUSERPERMISSIONS_LONGNAME) &&
+					theMap.containsKey("Profile")) {
+				this.log("Asked to strip user permissions from Profiles - will do so now.", Loglevel.NORMAL);
+				ProfileCompare pc = new ProfileCompare(ProfileCompare.Loglevel.VERBOSE);
+				pc.stripUserPermissionsFromProfiles(filename.replace("xml", "zip"));
+				
+			}
 		}
 	}
 
