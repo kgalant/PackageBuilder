@@ -40,7 +40,7 @@ max number of items to put into a single package.xml (10000 is current max enfor
 * -do,--download
 execute a retrieve from the org using the generated package(s)
 * -spp,--stripprofileuserpermissions
-if using -do, and the package contains Profiles, unzip the pacakge and remove all userPermissions from each Profile file, then zip again
+if using -do, and the package contains Profiles, unzip the package and remove all userPermissions from each Profile file, then zip again
 
 #### Filtering what goes in the package
 
