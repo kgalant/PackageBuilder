@@ -24,7 +24,7 @@ package com.kgal.packagebuilder;
 /**
  * Result of the persistence operation for a Zip file downloaded from the
  * Salesforce Meta Data API
- * 
+ *
  * @author swissel
  *
  */
@@ -44,8 +44,17 @@ public class PersistResult {
 
     };
 
-    private boolean done   = false;
-    private Status  status = Status.UNDEFINED;
+    private final String name;
+    private boolean      done   = false;
+    private Status       status = Status.UNDEFINED;
+
+    public PersistResult(final String name) {
+        this.name = name;
+    }
+
+    public String getName() {
+        return this.name;
+    }
 
     public Status getStatus() {
         return this.status;

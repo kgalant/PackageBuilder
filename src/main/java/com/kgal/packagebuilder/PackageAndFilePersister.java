@@ -30,8 +30,9 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.Callable;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
-import com.kgal.packagebuilder.PackageBuilder.Loglevel;
 import com.kgal.packagebuilder.PersistResult.Status;
 import com.kgal.packagebuilder.inventory.InventoryItem;
 import com.kgal.packagebuilder.output.SimpleXMLDoc;
@@ -46,53 +47,56 @@ import com.sforce.soap.metadata.MetadataConnection;
  */
 public class PackageAndFilePersister implements Callable<PersistResult> {
 
-    private final HashMap<String, ArrayList<InventoryItem>> theMap;
+    private final Logger logger = Logger.getLogger(Logger.GLOBAL_LOGGER_NAME);
+
+    private final Map<String, ArrayList<InventoryItem>> theMap;
     private final String                                    filename;
-    private final int                                       packageNumber;
     private final boolean                                   includeChangeData;
     private final boolean                                   downloadData;
+    private final boolean                                   unzipDownload;
     private final double                                    myApiVersion;
     private final String                                    targetDir;
     private final String                                    metaSourceDownloadDir;
     private final MetadataConnection                        metadataConnection;
-    private final Loglevel                                  loglevel = Loglevel.BRIEF;
-    private final PersistResult                             result   = new PersistResult();
+    private final PersistResult                             result;
 
     private OrgRetrieve myRetrieve = null;
-    private boolean localOny = false;
+    private boolean     localOny   = false;
 
     public PackageAndFilePersister(final double myApiVersion,
             final String targetDir,
             final String metaSourceDownloadDir,
-            final HashMap<String, ArrayList<InventoryItem>> theMap,
+            final Map<String, ArrayList<InventoryItem>> theMap,
             final String filename,
-            final int packageNumber, final boolean includeChangeData, final boolean download,
+            final boolean includeChangeData, final boolean download,
+            final boolean unzip,
             final MetadataConnection metadataConnection) {
         this.myApiVersion = myApiVersion;
         this.targetDir = targetDir;
         this.metaSourceDownloadDir = metaSourceDownloadDir;
         this.theMap = theMap;
         this.filename = filename;
-        this.packageNumber = packageNumber;
         this.includeChangeData = includeChangeData;
         this.downloadData = download;
+        this.unzipDownload = unzip;
         this.metadataConnection = metadataConnection;
+        this.result = new PersistResult(filename);
     }
-    
+
     /**
-     * Switch the persister to local only operation
-     * mainly used when you have both a local ZIP and XML
+     * Switch the persister to local only operation mainly used when you have
+     * both a local ZIP and XML
      */
     public void setLocalOnly() {
         this.localOny = true;
     }
 
     /**
-     * @see java.lang.Runnable#run()
+     * @see java.lang.Callable#call()
      */
     @Override
     public PersistResult call() throws Exception {
-
+        boolean itworked = true;
         try {
             final SimpleDateFormat format1 = new SimpleDateFormat(PackageBuilder.DEFAULT_DATE_FORMAT);
             final SimpleXMLDoc packageXML = new SimpleXMLDoc();
@@ -124,20 +128,19 @@ public class PackageAndFilePersister implements Callable<PersistResult> {
             packageXML.closeDocument();
 
             Utils.writeFile(this.targetDir + this.filename, packageXML.toString());
-            this.log("Writing " + new File(this.targetDir + this.filename).getCanonicalPath(), Loglevel.BRIEF);
-
-            if (this.downloadData) {
-                this.downloadAndUnzip(this.localOny);
-            } else {
-                this.result.setStatus(PersistResult.Status.SUCCESS);
-
-            }
+            this.logger.log(Level.INFO, "Writing " + new File(this.targetDir + this.filename).getCanonicalPath());
 
         } catch (final Exception e) {
             this.result.setStatus(PersistResult.Status.FAILURE);
-
+            itworked = false;
             e.printStackTrace();
         } finally {
+            if (itworked && this.downloadData) {
+                this.downloadAndUnzip(this.localOny, this.unzipDownload);
+            } else {
+                this.result.setStatus((itworked) ? PersistResult.Status.SUCCESS : PersistResult.Status.FAILURE);
+
+            }
             this.result.setDone();
         }
         return this.result;
@@ -150,46 +153,43 @@ public class PackageAndFilePersister implements Callable<PersistResult> {
      *            activity mainly for testing
      * @throws Exception
      */
-    private void downloadAndUnzip(final boolean doNotDownLoad) throws Exception {
+    private void downloadAndUnzip(final boolean doNotDownLoad, final boolean unzip) throws Exception {
         final String zipFileName = this.filename.replace("xml", "zip");
         if (doNotDownLoad) {
-            this.log("Working with local packages, no actual download", Loglevel.BRIEF);
+            this.logger.log(Level.INFO, "Working with local packages, no actual download");
         } else {
-            this.log("Asked to retrieve this package from org - will do so now.", Loglevel.BRIEF);
-            myRetrieve = new OrgRetrieve(OrgRetrieve.Loglevel.VERBOSE);
+            this.logger.log(Level.INFO,
+                    "Asked to retrieve this package " + this.filename + "from org - will do so now.");
+            myRetrieve = new OrgRetrieve(Level.FINE);
             myRetrieve.setMetadataConnection(this.metadataConnection);
             myRetrieve.setZipFile(zipFileName);
             myRetrieve.setManifestFile(this.targetDir + this.filename);
             myRetrieve.setApiVersion(this.myApiVersion);
-            myRetrieve.setPackageNumber(this.packageNumber);
             myRetrieve.retrieveZip();
         }
 
         final File zipResult = new File(zipFileName);
+
         if (zipResult.exists()) {
-            final Map<String, Calendar> fileDates = new HashMap<>();
-            this.theMap.entrySet().forEach((entry) -> {
-                try {
-                    final String curKey = String.valueOf(Utils.getDirForMetadataType(entry.getKey()));
-                    entry.getValue().forEach(item -> {
-                        fileDates.put(curKey + "/" + item.itemName.toLowerCase(), item.getLastModifiedDate());
-                    });
-                } catch (IOException e) {
-                    e.printStackTrace();
-                }
-            });
-            final ZipAndFileFixer zff = new ZipAndFileFixer(zipResult, fileDates);
-            zff.extractAndAdjust(this.metaSourceDownloadDir);
+            if (unzip) {
+                final Map<String, Calendar> fileDates = new HashMap<>();
+                this.theMap.entrySet().forEach((entry) -> {
+                    try {
+                        final String curKey = String.valueOf(Utils.getDirForMetadataType(entry.getKey()));
+                        entry.getValue().forEach(item -> {
+                            fileDates.put(curKey + "/" + item.itemName.toLowerCase(), item.getLastModifiedDate());
+                        });
+                    } catch (IOException e) {
+                        e.printStackTrace();
+                    }
+                });
+                final ZipAndFileFixer zff = new ZipAndFileFixer(zipResult, fileDates);
+                zff.extractAndAdjust(this.metaSourceDownloadDir);
+            }
             this.result.setStatus(Status.SUCCESS);
         } else {
-            this.log("Cancel requested or download ZIP file doesn't exist:" + zipFileName, Loglevel.BRIEF);
+            this.logger.log(Level.INFO, "Cancel requested or download ZIP file doesn't exist:" + zipFileName);
             this.result.setStatus(Status.FAILURE);
-        }
-    }
-
-    private void log(final String logText, final Loglevel level) {
-        if ((this.loglevel == null) || (level.getLevel() <= this.loglevel.getLevel())) {
-            System.out.println(logText);
         }
     }
 

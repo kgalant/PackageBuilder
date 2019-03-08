@@ -104,7 +104,8 @@ public class ZipAndFileFixer {
                 e.printStackTrace();
             }
         } else if (this.fileDates != null) {
-            System.err.println("No file date found for "+key);
+            // Quite a lot - not worth it
+           // System.err.println("No file date found for "+key);
         }
 
     }

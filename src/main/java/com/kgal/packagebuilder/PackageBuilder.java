@@ -9,11 +9,15 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
+import java.util.logging.ConsoleHandler;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.regex.PatternSyntaxException;
@@ -21,6 +25,7 @@ import java.util.regex.PatternSyntaxException;
 import com.kgal.packagebuilder.inventory.InventoryDatabase;
 import com.kgal.packagebuilder.inventory.InventoryItem;
 import com.kgal.packagebuilder.output.GitOutputManager;
+import com.kgal.packagebuilder.output.LogFormatter;
 import com.salesforce.migrationtoolutils.Utils;
 import com.sforce.soap.metadata.DescribeMetadataObject;
 import com.sforce.soap.metadata.DescribeMetadataResult;
@@ -38,20 +43,6 @@ import com.sforce.ws.ConnectionException;
 
 public class PackageBuilder {
 
-    public enum Loglevel {
-        VERBOSE(2), NORMAL(1), BRIEF(0);
-        private final int level;
-
-        Loglevel(final int level) {
-            this.level = level;
-        }
-
-        int getLevel() {
-            return this.level;
-        }
-
-    };
-
     public enum OperationMode {
         DIR(0), ORG(1);
 
@@ -67,13 +58,14 @@ public class PackageBuilder {
     }
 
     // Static values that don;t change
-    private static final String  DBFILENAMESUFFIX       = ".packageBuilderDB";
-    public static final String   DEFAULT_DATE_FORMAT    = "yyyy-MM-dd'T'HH:mm:ss";
-    private static final String  URLBASE                = "/services/Soap/u/";
-    public static final int      MAXITEMSINPACKAGE      = 10000;
-    public static final double   API_VERSION            = 44.0;
-    public static final boolean  INCLUDECHANGEDATA      = false;
-    private static final boolean FILTERVERSIONLESSFLOWS = true;
+    public static final String  DBFILENAMESUFFIX       = ".packageBuilderDB";
+    public static final String  DEFAULT_DATE_FORMAT    = "yyyy-MM-dd'T'HH:mm:ss";
+    public static final String  URLBASE                = "/services/Soap/u/";
+    public static final int     MAXITEMSINPACKAGE      = 10000;
+    public static final double  API_VERSION            = 45.0;
+    public static final boolean INCLUDECHANGEDATA      = false;
+    public static final boolean FILTERVERSIONLESSFLOWS = true;
+    public static final int     CONCURRENT_THREADS     = 8;
 
     private static final String[] STANDARDVALUETYPESARRAY = new String[] { "AccountContactMultiRoles",
             "AccountContactRole", "AccountOwnership", "AccountRating", "AccountType", "AddressCountryCode",
@@ -93,6 +85,8 @@ public class PackageBuilder {
             "SocialPostEngagementLevel", "SocialPostReviewedStatus", "SolutionStatus", "TaskPriority", "TaskStatus",
             "TaskSubject", "TaskType",
             "WorkOrderLineItemStatus", "WorkOrderPriority", "WorkOrderStatus" };
+    // Logging
+    private final Logger logger = Logger.getLogger(Logger.GLOBAL_LOGGER_NAME);
 
     // Collections
     private final ArrayList<Pattern>  skipPatterns  = new ArrayList<>();
@@ -103,9 +97,11 @@ public class PackageBuilder {
     private double                                  myApiVersion;
     private String                                  skipItems;
     private HashMap<String, DescribeMetadataObject> describeMetadataObjectsMap;
-    String                                          authEndPoint = "";
+    String                                          authEndPoint   = "";
     private long                                    timeStart;
+    private final long                              totalTimeStart = System.currentTimeMillis();
     private MetadataConnection                      srcMetadataConnection;
+    @SuppressWarnings("unused")
     private ToolingConnection                       srcToolingConnection;
     private String                                  srcUrl;
     private String                                  srcUser;
@@ -114,15 +110,15 @@ public class PackageBuilder {
     private String            dbFilename;
     private String            targetDir             = "";
     private String            metaSourceDownloadDir = "src";
-    private Loglevel          loglevel;
     private OperationMode     mode;
     private PartnerConnection srcPartnerConnection;
 
-    private boolean includeChangeData = false;
-    private boolean downloadData      = false;
-    private boolean gitCommit         = false;
-    private boolean simulateDataDownload = false;
-    private int     maxItemsInPackage = MAXITEMSINPACKAGE;
+    private boolean includeChangeData        = false;
+    private boolean downloadData             = false;
+    private boolean gitCommit                = false;
+    private boolean simulateDataDownload     = false;
+    private int     maxItemsInRegularPackage = PackageBuilder.MAXITEMSINPACKAGE;
+    private boolean unzipDownload            = false;
 
     // Constructor that gets all settings as map
     public PackageBuilder(final Map<String, String> parameters) {
@@ -133,23 +129,29 @@ public class PackageBuilder {
     public void run() throws RemoteException, Exception {
 
         // set loglevel based on parameters
-        this.loglevel = ("verbose".equals(this.parameters.get("loglevel"))) ? Loglevel.NORMAL : Loglevel.BRIEF;
+        final Level thisLogLevel = ("verbose".equals(this.parameters.get("loglevel"))) ? Level.FINE : Level.INFO;
+        this.logger.setLevel(thisLogLevel);
+        this.logger.setUseParentHandlers(false);
+        final LogFormatter formatter = new LogFormatter();
+        final ConsoleHandler handler = new ConsoleHandler();
+        handler.setFormatter(formatter);
+        this.logger.addHandler(handler);
 
         // Check what to do based on parameters
         this.includeChangeData = this.isParamTrue(PackageBuilderCommandLine.INCLUDECHANGEDATA_LONGNAME);
         this.downloadData = this.isParamTrue(PackageBuilderCommandLine.DOWNLOAD_LONGNAME);
         this.gitCommit = this.isParamTrue(PackageBuilderCommandLine.GITCOMMIT_LONGNAME);
         this.simulateDataDownload = this.isParamTrue(PackageBuilderCommandLine.LOCALONLY_LONGNAME);
-
-        this.maxItemsInPackage = Integer.valueOf(this.parameters.get(PackageBuilderCommandLine.MAXITEMS_LONGNAME));
+        this.unzipDownload = this.isParamTrue(PackageBuilderCommandLine.UNZIP_LONGNAME);
+        this.maxItemsInRegularPackage = Integer
+                .valueOf(this.parameters.get(PackageBuilderCommandLine.MAXITEMS_LONGNAME));
 
         // initialize inventory - it will be used in both types of operations
         // (connect to org or run local)
         // added for inventory database handling
 
         final HashMap<String, ArrayList<InventoryItem>> inventory = new HashMap<>();
-        // HashMap<String,ArrayList<String>> inventory = new
-        // HashMap<String,ArrayList<String>>();
+
 
         this.myApiVersion = Double.parseDouble(this.parameters.get(PackageBuilderCommandLine.APIVERSION_LONGNAME));
         this.targetDir = Utils.checkPathSlash(
@@ -161,6 +163,7 @@ public class PackageBuilder {
         // if we have a base directory set, ignore everything else and generate
         // from the directory
 
+        // Generate all inventory items either from a local directory or an existing ORG
         if (this.parameters.get(PackageBuilderCommandLine.BASEDIRECTORY_LONGNAME) != null) {
             this.generateInventoryFromDir(inventory);
             this.mode = OperationMode.DIR;
@@ -168,102 +171,68 @@ public class PackageBuilder {
             this.generateInventoryFromOrg(inventory);
             this.mode = OperationMode.ORG;
         }
-        final HashMap<String, ArrayList<InventoryItem>>[] actualInventory = this.generatePackageXML(inventory);
+        
+        // This is where the actual work happens creating Package[].xml AND download/unzip assets
+        final Map<String, Map<String, ArrayList<InventoryItem>>> actualInventory = this.generatePackageXML(inventory);
 
         if (this.gitCommit) {
-            GitOutputManager gom = new GitOutputManager(this.parameters);
+            final GitOutputManager gom = new GitOutputManager(this.parameters);
             gom.commitToGit(actualInventory);
         }
+        this.endTiming(this.totalTimeStart, "Complete run");
     }
 
-    private HashMap<String, ArrayList<InventoryItem>>[] breakPackageIntoFiles(
+    /**
+     * We can limit the number of elements per package files - either 10,000 per
+     * Salesforce default or a value parameter provided in properties/command
+     * line
+     * 
+     * @param myFile
+     *            Map with InventoryItem Map key is type of inventory item
+     * @return Map of Maps with InventoryItem outer key is package file name
+     */
+    private Map<String, Map<String, ArrayList<InventoryItem>>> breakPackageIntoFiles(
             final HashMap<String, ArrayList<InventoryItem>> myFile) {
 
-        final ArrayList<HashMap<String, ArrayList<InventoryItem>>> files = new ArrayList<>();
-        int fileIndex = 0;
-        int fileCount = 0;
+        final Map<String, Map<String, ArrayList<InventoryItem>>> breakIntoFilesResult = new HashMap<>();
+
+        int packageFileIndex = 0;
+        int memberCount = 0;
         HashMap<String, ArrayList<InventoryItem>> currentFile = new HashMap<>();
+
+        String packageFileName = "package.xml";
         for (final String mdType : myFile.keySet()) {
             final ArrayList<InventoryItem> mdTypeList = myFile.get(mdType);
-            final int mdTypeSize = mdTypeList.size();
-
-            // do we have room in this file for the
-            if ((fileCount + mdTypeSize) > maxItemsInPackage) {
-                // no, we don't, finish file off, add to list, create new and
-                // add to that
-
-                this.log("Type " + mdType + ", won't fit into this file - #items: " + mdTypeSize + ".",
-                        Loglevel.NORMAL);
-
-                // put part of this type into this file
-
-                ArrayList<InventoryItem> mdTypeListPartial = new ArrayList<InventoryItem>(
-                        mdTypeList.subList(0, maxItemsInPackage - fileCount));
-                currentFile.put(mdType, mdTypeListPartial);
-                mdTypeList.removeAll(mdTypeListPartial);
-                fileCount += mdTypeListPartial.size();
-                this.log(
-                        "Adding type: " + mdType + "(" + mdTypeListPartial.size() + " items) to file " + fileIndex
-                                + ", total count now: "
-                                + fileCount,
-                        Loglevel.NORMAL);
-                files.add(currentFile);
-
-                // finish and start new file
-
-                this.log("Finished composing file " + fileIndex + ", total count: " + fileCount + "items.",
-                        Loglevel.NORMAL);
-                currentFile = new HashMap<>();
-                fileCount = 0;
-                fileIndex++;
+            for (final InventoryItem mdMember : mdTypeList) {
+                if (this.maxItemsInRegularPackage < memberCount) {
+                    // We are good, add to current file
+                    ArrayList<InventoryItem> curType = (currentFile.containsKey(mdType))
+                            ? currentFile.get(mdType)
+                            : new ArrayList<>();
+                    curType.add(mdMember);
+                    currentFile.put(mdType, curType);
+                    memberCount++;
+                } else {
+                    // Capture the current file and clear running variables
+                    this.logger.log(Level.FINE,
+                            "Finished composing file " + packageFileName + ", total count: " + memberCount + "items.");
+                    breakIntoFilesResult.put(packageFileName, new HashMap<>(currentFile));
+                    packageFileIndex++;
+                    memberCount = 0;
+                    currentFile.clear();
+                    packageFileName = "package." + String.valueOf(packageFileIndex) + ".xml";
+                }
             }
-            // now add this type to this file and continue
-            // but need to check that this type isn't more than maxItems
-            // if yes, then split this type into multiple pieces
-
-            while (mdTypeList.size() > maxItemsInPackage) {
-                // too much even for a single file just with that,
-                // break up into multiple files
-
-                ArrayList<InventoryItem> mdTypeListPartial = new ArrayList<InventoryItem>(
-                        mdTypeList.subList(0, maxItemsInPackage));
-                currentFile.put(mdType, mdTypeListPartial);
-                fileCount += mdTypeListPartial.size();
-                files.add(currentFile);
-                currentFile = new HashMap<>();
-                mdTypeList.removeAll(mdTypeListPartial);
-                this.log(
-                        "Adding type: " + mdType + "(" + mdTypeListPartial.size() + " items) to file " + fileIndex
-                                + ", total count now: "
-                                + fileCount,
-                        Loglevel.NORMAL);
-                this.log("Finished composing file " + fileIndex + ", total count: " + fileCount + "items.",
-                        Loglevel.NORMAL);
-                fileCount = 0;
-                fileIndex++;
-
-            }
-
-            currentFile.put(mdType, mdTypeList);
-            fileCount += mdTypeList.size();
-            this.log(
-                    "Adding type: " + mdType + "(" + mdTypeList.size() + " items) to file " + fileIndex
-                            + ", total count now: "
-                            + fileCount,
-                    Loglevel.NORMAL);
         }
 
-        // finish off any last file
-        files.add(currentFile);
-        this.log("Finished composing file " + fileIndex + ", total count: " + fileCount + "items.", Loglevel.NORMAL);
+        if (memberCount > 0) {
+            // We have a final package
+            breakIntoFilesResult.put(packageFileName, currentFile);
+            this.logger.log(Level.FINE,
+                    "Finished composing final file " + packageFileName + ", total count: " + memberCount + "items.");
+        }
 
-        @SuppressWarnings("unchecked")
-        HashMap<String, ArrayList<InventoryItem>>[] retval = new HashMap[files
-                .size()];
-
-        retval = files.toArray(retval);
-
-        return retval;
+        return breakIntoFilesResult;
     }
 
     // this method reads in any old database that may exist that matches the org
@@ -300,14 +269,14 @@ public class PackageBuilder {
 
     /*
      * Not needed ATM, download being done when writing each package.xml
-     * 
+     *
      * private void downloadMetaData(final HashMap<String,
      * ArrayList<InventoryItem>>[] actualInventory) throws Exception { int
      * packageNumber = 1; for (HashMap<String, ArrayList<InventoryItem>>
-     * inventory : actualInventory) {
-     * this.log("Asked to retrieve this package from org - will do so now.",
-     * Loglevel.BRIEF); OrgRetrieve myRetrieve = new
-     * OrgRetrieve(OrgRetrieve.Loglevel.VERBOSE);
+     * inventory : actualInventory) { this.logger.log(Level.
+     * INFO,"Asked to retrieve this package from org - will do so now.",
+     * Level.INFO); OrgRetrieve myRetrieve = new
+     * OrgRetrieve(OrgRetrieve.Level.FINE);
      * myRetrieve.setMetadataConnection(srcMetadataConnection);
      * myRetrieve.setZipFile("mypackage" + packageNumber + ".zip");
      * myRetrieve.setInventoryToRetrieve(inventory);
@@ -316,14 +285,14 @@ public class PackageBuilder {
      * }
      */
 
-    private void endTiming() {
+    private void endTiming(final long start, final String message) {
         final long end = System.currentTimeMillis();
-        final long diff = ((end - this.timeStart));
+        final long diff = ((end - start));
         final String hms = String.format("%02d:%02d:%02d", TimeUnit.MILLISECONDS.toHours(diff),
                 TimeUnit.MILLISECONDS.toMinutes(diff) - TimeUnit.HOURS.toMinutes(TimeUnit.MILLISECONDS.toHours(diff)),
                 TimeUnit.MILLISECONDS.toSeconds(diff)
                         - TimeUnit.MINUTES.toSeconds(TimeUnit.MILLISECONDS.toMinutes(diff)));
-        this.log("Duration: " + hms, Loglevel.NORMAL);
+        this.logger.log(Level.FINE, message + " Duration: " + hms);
     }
 
     private HashMap<String, InventoryItem> fetchMetadataType(final String metadataType)
@@ -340,7 +309,8 @@ public class PackageBuilder {
             final DescribeMetadataObject obj = this.describeMetadataObjectsMap.get(metadataType);
             if ((obj != null) && (obj.getInFolder() == true)) {
                 isFolder = true;
-                this.log(metadataType + " is stored in folders. Getting folder list.", Loglevel.VERBOSE);
+                this.logger.log(Level.INFO, metadataType + " is stored in folders. Getting folder list. \\",
+                        Level.FINE);
                 final ListMetadataQuery query = new ListMetadataQuery();
                 // stupid hack for emailtemplate folder name
                 String type;
@@ -392,8 +362,9 @@ public class PackageBuilder {
                 itemCount += srcMd.length;
                 // thisItemCount = srcMd.length;
                 if (folderName != null) {
-                    this.log("Processing folder: " + folderName + " " + " items: " + srcMd.length + "\tCurrent total: "
-                            + itemCount, Loglevel.NORMAL);
+                    this.logger.log(Level.FINE,
+                            "Processing folder: " + folderName + " " + " items: " + srcMd.length + "\tCurrent total: "
+                                    + itemCount);
                     // fetch folders themselves
                     // packageMap.add(folderName);
                     final ArrayList<FileProperties> filenameList = new ArrayList<>();
@@ -434,7 +405,7 @@ public class PackageBuilder {
 
                 } else {
                     if (!isFolder) {
-                        this.log("No items of this type, skipping...", Loglevel.VERBOSE);
+                        this.logger.log(Level.INFO, " - No items of this type, skipping... \\", Level.FINE);
                         break;
                     }
                     if (!folder.hasNext()) {
@@ -449,11 +420,11 @@ public class PackageBuilder {
 
         } catch (final ConnectionException ce) {
             // ce.printStackTrace();
-            this.log("\nException processing: " + metadataType, Loglevel.BRIEF);
-            this.log("Error: " + ce.getMessage(), Loglevel.BRIEF);
+            this.logger.log(Level.INFO, "\nException processing: " + metadataType);
+            this.logger.log(Level.INFO, "Error: " + ce.getMessage());
         }
 
-        this.endTiming();
+        this.endTiming(this.timeStart, "Meta Data retrieval");
         return packageInventoryList;
     }
 
@@ -489,9 +460,9 @@ public class PackageBuilder {
         if (!Utils.checkIsDirectory(basedir)) {
             // log error and exit
 
-            this.log("Base directory parameter provided: " + basedir
+            this.logger.log(Level.INFO, "Base directory parameter provided: " + basedir
                     + " invalid or is not a directory, cannot continue.",
-                    Loglevel.BRIEF);
+                    Level.INFO);
             System.exit(1);
         }
 
@@ -519,7 +490,7 @@ public class PackageBuilder {
                 final int separatorLocation = s.indexOf(File.separator);
 
                 if (separatorLocation == -1) {
-                    this.log("No folder in: " + s + ",skipping...", Loglevel.VERBOSE);
+                    this.logger.log(Level.INFO, "No folder in: " + s + ",skipping...", Level.FINE);
                     continue;
                 }
 
@@ -546,9 +517,10 @@ public class PackageBuilder {
                 }
 
                 if (mdType == null) {
-                    this.log("Couldn't find type mapping for item : " + mdType + " : " + filename + ", original path: "
-                            + s
-                            + ",skipping...", Loglevel.BRIEF);
+                    this.logger.log(Level.INFO,
+                            "Couldn't find type mapping for item : " + mdType + " : " + filename + ", original path: "
+                                    + s
+                                    + ",skipping...");
                     continue;
                 }
 
@@ -567,8 +539,8 @@ public class PackageBuilder {
                 if (filename.contains("/") && mdType.equals("AuraDefinitionBundle")) {
                     final String subFoldername = filename.substring(0, filename.indexOf("/"));
                     typeInventory.add(new InventoryItem(subFoldername, null));
-                    this.log("Added: " + mdType + " : " + subFoldername + ", to inventory, original path: " + s,
-                            Loglevel.NORMAL);
+                    this.logger.log(Level.FINE,
+                            "Added: " + mdType + " : " + subFoldername + ", to inventory, original path: " + s);
                     continue;
                 }
 
@@ -581,8 +553,8 @@ public class PackageBuilder {
                 }
 
                 typeInventory.add(new InventoryItem(filename, null));
-                this.log("Added: " + mdType + " : " + filename + ", to inventory, original path: " + s,
-                        Loglevel.NORMAL);
+                this.logger.log(Level.FINE,
+                        "Added: " + mdType + " : " + filename + ", to inventory, original path: " + s);
 
                 // convert myinventory to the right return type
 
@@ -602,14 +574,13 @@ public class PackageBuilder {
 
     }
 
-    /*
-     *
-     * this method will populate username (Salesforce user name in email format)
-     * and user email fields on the inventoryItems for use when outputting
-     * change telemetry
-     *
-     */
 
+    /**
+     * 
+     * @param inventory The inventory Map to be filled with Meta data name
+     * @throws RemoteException
+     * @throws Exception
+     */
     private void generateInventoryFromOrg(final HashMap<String, ArrayList<InventoryItem>> inventory)
             throws RemoteException, Exception {
 
@@ -625,11 +596,11 @@ public class PackageBuilder {
 
         // Figure out what we are going to be fetching
 
-        final ArrayList<String> workToDo = new ArrayList<>(this.getTypesToFetch());
+        final List<String> workToDo = new ArrayList<>(this.getTypesToFetch());
         Collections.sort(workToDo);
 
-        this.log("Will fetch: " + String.join(", ", workToDo) + " from: " + this.srcUrl, Loglevel.BRIEF);
-        this.log("Using user: " + this.srcUser + " skipping: " + this.skipItems, Loglevel.NORMAL);
+        this.logger.log(Level.INFO, "Will fetch: " + String.join(", ", workToDo) + " from: " + this.srcUrl);
+        this.logger.log(Level.FINE, "Using user: " + this.srcUser + " skipping: " + this.skipItems);
 
         System.out.println("target directory: " + this.targetDir);
 
@@ -640,13 +611,15 @@ public class PackageBuilder {
         while (i.hasNext()) {
             counter++;
             final String mdType = i.next();
-            if (this.loglevel.getLevel() > Loglevel.BRIEF.getLevel()) {
-                this.log("*********************************************", Loglevel.NORMAL);
-                this.log("Processing type " + counter + " out of " + workToDo.size() + ": " + mdType, Loglevel.NORMAL);
-                this.log("*********************************************", Loglevel.NORMAL);
-            } else if (this.loglevel == Loglevel.BRIEF) {
-                this.logPartialLine("Processing type " + counter + " out of " + workToDo.size() + ": " + mdType,
-                        Loglevel.BRIEF);
+            if (this.logger.getLevel() == Level.INFO) {
+                this.logger.log(Level.INFO,
+                        "Processing type " + counter + " out of " + workToDo.size() + ": " + mdType + "\\");
+            } else {
+                this.logger.log(Level.FINE, "*********************************************");
+                this.logger.log(Level.FINE,
+                        "Processing type " + counter + " out of " + workToDo.size() + ": " + mdType);
+                this.logger.log(Level.FINE, "*********************************************");
+
             }
 
             final ArrayList<InventoryItem> mdTypeItemList = new ArrayList<>(
@@ -654,19 +627,19 @@ public class PackageBuilder {
             Collections.sort(mdTypeItemList, (o1, o2) -> o1.itemName.compareTo(o2.itemName));
             inventory.put(mdType, mdTypeItemList);
 
-            if (this.loglevel.getLevel() > Loglevel.BRIEF.getLevel()) {
-                this.log("---------------------------------------------", Loglevel.NORMAL);
-                this.log("Finished processing: " + mdType, Loglevel.NORMAL);
-                this.log("---------------------------------------------", Loglevel.NORMAL);
-            } else if (this.loglevel == Loglevel.BRIEF) {
-                this.log(" items: " + mdTypeItemList.size(), Loglevel.BRIEF);
+            if (this.logger.getLevel() == Level.INFO) {
+                this.logger.log(Level.INFO, " items: " + mdTypeItemList.size());
+            } else {
+                this.logger.log(Level.FINE, "---------------------------------------------");
+                this.logger.log(Level.FINE, "Finished processing: " + mdType);
+                this.logger.log(Level.FINE, "---------------------------------------------");
             }
         }
 
     }
 
-    private HashMap<String, ArrayList<InventoryItem>>[] generatePackageXML(
-            final HashMap<String, ArrayList<InventoryItem>> inventory)
+    private Map<String, Map<String, ArrayList<InventoryItem>>> generatePackageXML(
+            final Map<String, ArrayList<InventoryItem>> inventory)
             throws Exception {
 
         int itemCount = 0;
@@ -741,53 +714,96 @@ public class PackageBuilder {
         }
 
         // now check if anything we have needs to be skipped
-
         skipCount = this.handleSkippingItems(myFile);
 
         // now break it up into files if needed
 
-        final HashMap<String, ArrayList<InventoryItem>>[] files = this.breakPackageIntoFiles(myFile);
+        final Map<String, Map<String, ArrayList<InventoryItem>>> files = this.breakPackageIntoFiles(myFile);
 
         // if we're writing change telemetry into the package.xml, need to get
         // user emails now
-        if (includeChangeData) {
+        if (this.includeChangeData) {
             this.populateUserEmails(myFile);
         }
 
         // USE THREADS TO speed things up
-        int totalFiles = files.length;
-        ExecutorService WORKER_THREAD_POOL = Executors.newFixedThreadPool(totalFiles);
+        // final int totalFiles = files.size();
+        final ExecutorService WORKER_THREAD_POOL = Executors.newFixedThreadPool(PackageBuilder.CONCURRENT_THREADS);
 
-        Collection<PackageAndFilePersister> allPersisters = new ArrayList<>();
-        for (int i = 0; i < totalFiles; i++) {
-            String curFileName = (i == 0)
-                    ? "package.xml"
-                    : "package." + i + ".xml";
-            PackageAndFilePersister pfp = new PackageAndFilePersister(this.myApiVersion,
+        final Collection<PackageAndFilePersister> allPersisters = new ArrayList<>();
+
+        // Write out a complete version of the package,xml for later
+        // mdapi:convert operations
+        // TODO: Do we actually need this?
+        final PackageAndFilePersister completePackageXML = new PackageAndFilePersister(this.myApiVersion,
+                this.targetDir,
+                this.metaSourceDownloadDir,
+                myFile,
+                "packageComplete.xml",
+                false, false, false, this.srcMetadataConnection);
+        allPersisters.add(completePackageXML);
+        // End of todo
+
+        // Add all XML Files to the download queue
+        files.forEach((curFileName, members) -> {
+            final PackageAndFilePersister pfp = new PackageAndFilePersister(this.myApiVersion,
                     this.targetDir,
                     this.metaSourceDownloadDir,
-                    files[i], curFileName, i,
+                    members, curFileName,
                     this.includeChangeData,
                     this.downloadData,
+                    this.unzipDownload,
                     this.srcMetadataConnection);
             if (this.simulateDataDownload) {
                 pfp.setLocalOnly();
             }
             allPersisters.add(pfp);
-        }
+        });
 
-        WORKER_THREAD_POOL.invokeAll(allPersisters);
-        WORKER_THREAD_POOL.shutdownNow();
+        WORKER_THREAD_POOL.invokeAll(allPersisters).stream().map(future -> {
+            String result = null;
+            try {
+                final PersistResult pr = future.get();
+                result = "Completion of " + pr.getName() + ": " +
+                        String.valueOf(pr.getStatus());
+
+            } catch (Exception e) {
+                this.logger.log(Level.SEVERE, e.getMessage());
+                result = e.getMessage();
+            }
+            return result;
+
+        }).forEach(System.out::println);
+
+        // allPersisters
+        // .stream()
+        // .map(pfp -> {
+        // String result;
+        // try {
+        // PersistResult pr = pfp.call();
+        // result = "Completion of " + pr.getName() + ": " +
+        // String.valueOf(pr.getStatus());
+        // } catch (Exception e) {
+        // result = e.getMessage();
+        // logger.log(Level.SEVERE, e.getMessage(), e);
+        // }
+        // return result;
+        // })
+        // .forEach(System.out::println);
+
+        if (!WORKER_THREAD_POOL.awaitTermination(15, TimeUnit.SECONDS)) {
+            this.logger.log(Level.SEVERE, "Threads not terminated withing 15 sec");
+            WORKER_THREAD_POOL.shutdownNow();
+        }
 
         final ArrayList<String> typesFound = new ArrayList<>(this.existingTypes);
         Collections.sort(typesFound);
 
-        this.log("Types found in org: " + typesFound.toString(), Loglevel.BRIEF);
+        this.logger.log(Level.INFO, "Types found in org: " + typesFound.toString());
 
-        this.log("Total items in package.xml: " + itemCount, Loglevel.BRIEF);
-        this.log("Total items skipped: " + skipCount
-                + " (excludes count of items in type where entire type was skipped)",
-                Loglevel.NORMAL);
+        this.logger.log(Level.INFO, "Total items in package.xml: " + itemCount);
+        this.logger.log(Level.FINE, "Total items skipped: " + skipCount
+                + " (excludes count of items in type where entire type was skipped)");
 
         return files;
 
@@ -842,7 +858,7 @@ public class PackageBuilder {
             }
         } else {
             // no directions on what to fetch - go get everything
-            this.log("No metadataitems (-mi) parameter found, will inventory the whole org", Loglevel.BRIEF);
+            this.logger.log(Level.INFO, "No metadataitems (-mi) parameter found, will inventory the whole org");
 
             for (final String obj : this.describeMetadataObjectsMap.keySet()) {
                 typesToFetch.add(obj.trim());
@@ -869,6 +885,8 @@ public class PackageBuilder {
             }
         }
 
+        Collection<String> morituri = new ArrayList<>();
+
         for (final String mdType : myFile.keySet()) {
             // first, check if any of the patterns match the whole type
             String mdTypeFullName = mdType + ":";
@@ -876,51 +894,51 @@ public class PackageBuilder {
 
                 final Matcher m = p.matcher(mdTypeFullName);
                 if (m.matches()) {
-                    this.log("Skip pattern: " + p.pattern() + " matches the metadata type: " + mdTypeFullName
-                            + ", entire type will be skipped.", Loglevel.NORMAL);
+                    this.logger.log(Level.FINE,
+                            "Skip pattern: " + p.pattern() + " matches the metadata type: " + mdTypeFullName
+                                    + ", entire type will be skipped.");
 
                     // remove the whole key from the file
 
                     skipCount += myFile.get(mdType).size();
-
-                    myFile.remove(mdType);
+                    morituri.add(mdType);
                     continue;
 
                 }
             }
 
             final ArrayList<InventoryItem> items = myFile.get(mdType);
-            Collections.sort(items, (o1, o2) -> o1.itemName.compareTo(o2.itemName));
-            for (int i = 0; i < items.size(); i++) {
-                mdTypeFullName = mdType + ":" + items.get(i).itemName;
-                for (final Pattern p : this.skipPatterns) {
-                    final Matcher m = p.matcher(mdTypeFullName);
-                    if (m.matches()) {
-                        this.log("Skip pattern: " + p.pattern() + " matches the metadata item: " + mdTypeFullName
-                                + ", item will be skipped.", Loglevel.NORMAL);
-                        items.remove(i);
-                        skipCount++;
+            if (items != null) {
+                // Run through the collection in reverse order
+                // so not to run out of i when an item is removed
+                for (int i = items.size() - 1; i > -1; i--) {
+                    mdTypeFullName = mdType + ":" + items.get(i).itemName;
+                    for (final Pattern p : this.skipPatterns) {
+                        final Matcher m = p.matcher(mdTypeFullName);
+                        if (m.matches()) {
+                            this.logger.log(Level.FINE,
+                                    "Skip pattern: " + p.pattern() + " matches the metadata item: " + mdTypeFullName
+                                            + ", item will be skipped.");
+                            items.remove(i);
+                            skipCount++;
+                        }
                     }
                 }
+                // Sort the survivors only
+                Collections.sort(items, (o1, o2) -> o1.itemName.compareTo(o2.itemName));
             }
         }
+
+        // Remove full items
+        morituri.forEach(m -> {
+            myFile.remove(m);
+        });
+
         return skipCount;
     }
 
     private boolean isParamTrue(final String paramName) {
         return "true".equals(this.parameters.get(paramName));
-    }
-
-    private void log(final String logText, final Loglevel level) {
-        if ((this.loglevel == null) || (level.getLevel() <= this.loglevel.getLevel())) {
-            System.out.println(logText);
-        }
-    }
-
-    private void logPartialLine(final String logText, final Loglevel level) {
-        if (level.getLevel() <= this.loglevel.getLevel()) {
-            System.out.print(logText);
-        }
     }
 
     private void populateUserEmails(final HashMap<String, ArrayList<InventoryItem>> myFile) throws ConnectionException {
@@ -953,8 +971,8 @@ public class PackageBuilder {
 
         final String query = queryStart + queryMid + queryEnd;
 
-        this.log("Looking for emails for " + userIDs.size() + " users.", Loglevel.BRIEF);
-        this.log("Query: " + query, Loglevel.NORMAL);
+        this.logger.log(Level.INFO, "Looking for emails for " + userIDs.size() + " users.");
+        this.logger.log(Level.FINE, "Query: " + query);
 
         // run the query
 
@@ -1005,6 +1023,7 @@ public class PackageBuilder {
         this.timeStart = System.currentTimeMillis();
     }
 
+    @SuppressWarnings("unused")
     private void updateDatabase(final HashMap<String, ArrayList<InventoryItem>> inventory) {
         // construct org identified
         final String orgId = this.getOrgIdentifier();
@@ -1026,5 +1045,4 @@ public class PackageBuilder {
         // output any new records to screen
 
     }
-
 }

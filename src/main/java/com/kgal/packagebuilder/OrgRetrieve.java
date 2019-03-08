@@ -8,6 +8,8 @@ import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
@@ -19,52 +21,44 @@ import org.w3c.dom.NodeList;
 import org.xml.sax.SAXException;
 
 import com.kgal.packagebuilder.inventory.InventoryItem;
-import com.sforce.soap.metadata.*;
+import com.sforce.soap.metadata.AsyncResult;
+import com.sforce.soap.metadata.MetadataConnection;
+import com.sforce.soap.metadata.PackageTypeMembers;
+import com.sforce.soap.metadata.RetrieveMessage;
+import com.sforce.soap.metadata.RetrieveRequest;
+import com.sforce.soap.metadata.RetrieveResult;
+import com.sforce.soap.metadata.RetrieveStatus;
 
 /**
  * Sample that logs in and shows a menu of retrieve and deploy metadata options.
  */
 public class OrgRetrieve {
 
-    public enum Loglevel {
-        VERBOSE(2), NORMAL(1), BRIEF(0);
-        private final int level;
+    // one second in milliseconds
+    private static final long ONE_SECOND = 1000;
 
-        Loglevel(final int level) {
-            this.level = level;
-        }
+    private final Logger logger        = Logger.getLogger(Logger.GLOBAL_LOGGER_NAME);
+    private boolean      requestCancel = false;
 
-        int getLevel() {
-            return this.level;
-        }
-
-    };
-
-    private Loglevel           loglevel;
-    private boolean            requestCancel = false;
     private MetadataConnection metadataConnection;
 
     private String zipFile;
 
     // manifest file that controls which components get retrieved
     private String manifestFile;
-
-    private double apiVersion          = 44.0;
-    private int    packageNumber       = 1;
-    private int    secondsBetweenPolls = 15;
+    private double apiVersion    = 45.0;
 
     // what to retrieve if not based on package.xml file
 
-    private HashMap<String, ArrayList<InventoryItem>> inventoryToRetrieve;
+    private int secondsBetweenPolls = 15;
 
-    // one second in milliseconds
-    private static final long ONE_SECOND = 1000;
+    private HashMap<String, ArrayList<InventoryItem>> inventoryToRetrieve;
 
     // maximum number of attempts to deploy the zip file
     private int maxPolls = 200;
 
-    public OrgRetrieve(Loglevel level) {
-        loglevel = level;
+    public OrgRetrieve(final Level level) {
+        this.logger.setLevel(level);
     }
 
     public void requestCancel() {
@@ -74,30 +68,30 @@ public class OrgRetrieve {
     public void retrieveZip() throws Exception {
 
         // check parameters
-        if (!checkParameters()) {
+        if (!this.checkParameters()) {
             return;
         }
 
-        RetrieveRequest retrieveRequest = new RetrieveRequest();
+        final RetrieveRequest retrieveRequest = new RetrieveRequest();
         // The version in package.xml overrides the version in RetrieveRequest
-        retrieveRequest.setApiVersion(apiVersion);
-        if (manifestFile != null) {
-            setUnpackaged(retrieveRequest);
+        retrieveRequest.setApiVersion(this.apiVersion);
+        if (this.manifestFile != null) {
+            this.setUnpackaged(retrieveRequest);
         } else {
-            generateRetrieveFilelistBasedOnInventory(retrieveRequest);
+            this.generateRetrieveFilelistBasedOnInventory(retrieveRequest);
         }
 
-        AsyncResult asyncResult = metadataConnection.retrieve(retrieveRequest);
-        RetrieveResult result = waitForRetrieveCompletion(asyncResult);
+        final AsyncResult asyncResult = this.metadataConnection.retrieve(retrieveRequest);
+        final RetrieveResult result = this.waitForRetrieveCompletion(asyncResult);
 
         if (result.getStatus() == RetrieveStatus.Failed) {
             throw new Exception(result.getErrorStatusCode() + " msg: " +
                     result.getErrorMessage());
         } else if (result.getStatus() == RetrieveStatus.Succeeded) {
             // Print out any warning messages
-            StringBuilder stringBuilder = new StringBuilder();
+            final StringBuilder stringBuilder = new StringBuilder();
             if (result.getMessages() != null) {
-                for (RetrieveMessage rm : result.getMessages()) {
+                for (final RetrieveMessage rm : result.getMessages()) {
                     stringBuilder.append(rm.getFileName() + " - " + rm.getProblem() + "\n");
                 }
             }
@@ -105,9 +99,9 @@ public class OrgRetrieve {
                 System.out.println("Retrieve warnings:\n" + stringBuilder);
             }
 
-            System.out.println("Writing results to zip file");
-            File resultsFile = new File(zipFile);
-            FileOutputStream os = new FileOutputStream(resultsFile);
+            System.out.println("Writing results to zip file:" + this.zipFile);
+            final File resultsFile = new File(this.zipFile);
+            final FileOutputStream os = new FileOutputStream(resultsFile);
 
             try {
                 os.write(result.getZipFile());
@@ -117,14 +111,63 @@ public class OrgRetrieve {
         }
     }
 
-    private void generateRetrieveFilelistBasedOnInventory(RetrieveRequest retrieveRequest) {
+    public void setApiVersion(final double apiVersion) {
+        this.apiVersion = apiVersion;
+    }
+
+    public void setInventoryToRetrieve(final HashMap<String, ArrayList<InventoryItem>> inventoryToRetrieve) {
+        this.inventoryToRetrieve = inventoryToRetrieve;
+    }
+
+    public void setManifestFile(final String manifestFile) {
+        this.manifestFile = manifestFile;
+    }
+
+    public void setMaxPolls(final int maxPolls) {
+        this.maxPolls = maxPolls;
+    }
+
+    public void setMetadataConnection(final MetadataConnection metadataConnection) {
+        this.metadataConnection = metadataConnection;
+    }
+
+    public void setSecondsBetweenPolls(final int secondsBetweenPolls) {
+        this.secondsBetweenPolls = secondsBetweenPolls;
+    }
+
+    public void setZipFile(final String zipFile) {
+        this.zipFile = zipFile;
+    }
+
+    private boolean checkParameters() {
+        if (this.metadataConnection == null) {
+            this.logger.log(Level.SEVERE, "MetadataConnection not provided, cannot continue.");
+            return false;
+        }
+        if (this.zipFile == null) {
+            this.logger.log(Level.SEVERE, "Output zipfile name not provided, cannot continue.");
+            return false;
+        }
+        if ((this.manifestFile == null) && (this.inventoryToRetrieve == null)) {
+            this.logger.log(Level.SEVERE, "Neither input manifest nor inventory object provided, cannot continue.");
+            return false;
+        }
+
+        this.logger.log(Level.FINE, "API version for retrieve will be " + this.apiVersion);
+        this.logger.log(Level.FINE, "Package will be pulled into " + this.zipFile);
+        this.logger.log(Level.FINE, "Poll interval for retrieve will be " + this.secondsBetweenPolls +
+                ", max number of polls: " + this.maxPolls);
+        return true;
+    }
+
+    private void generateRetrieveFilelistBasedOnInventory(final RetrieveRequest retrieveRequest) {
 
         // generate the list of filenames to be retrieving
 
-        ArrayList<String> filenames = new ArrayList<String>();
+        final ArrayList<String> filenames = new ArrayList<>();
 
-        for (String mdType : inventoryToRetrieve.keySet()) {
-            for (InventoryItem i : inventoryToRetrieve.get(mdType)) {
+        for (final String mdType : this.inventoryToRetrieve.keySet()) {
+            for (final InventoryItem i : this.inventoryToRetrieve.get(mdType)) {
                 filenames.add(i.getFileName());
             }
         }
@@ -140,56 +183,44 @@ public class OrgRetrieve {
 
     }
 
-    private boolean checkParameters() {
-        if (metadataConnection == null) {
-            this.log("MetadataConnection not provided, cannot continue.", Loglevel.BRIEF);
-            return false;
+    private com.sforce.soap.metadata.Package parsePackageManifest(final File file)
+            throws ParserConfigurationException, IOException, SAXException {
+        com.sforce.soap.metadata.Package packageManifest = null;
+        final List<PackageTypeMembers> listPackageTypes = new ArrayList<>();
+        final DocumentBuilder db = DocumentBuilderFactory.newInstance().newDocumentBuilder();
+        final InputStream inputStream = new FileInputStream(file);
+        final Element d = db.parse(inputStream).getDocumentElement();
+        for (Node c = d.getFirstChild(); c != null; c = c.getNextSibling()) {
+            if (c instanceof Element) {
+                final Element ce = (Element) c;
+                final NodeList nodeList = ce.getElementsByTagName("name");
+                if (nodeList.getLength() == 0) {
+                    continue;
+                }
+                final String name = nodeList.item(0).getTextContent();
+                final NodeList m = ce.getElementsByTagName("members");
+                final List<String> members = new ArrayList<>();
+                for (int i = 0; i < m.getLength(); i++) {
+                    final Node mm = m.item(i);
+                    members.add(mm.getTextContent());
+                }
+                final PackageTypeMembers packageTypes = new PackageTypeMembers();
+                packageTypes.setName(name);
+                packageTypes.setMembers(members.toArray(new String[members.size()]));
+                listPackageTypes.add(packageTypes);
+            }
         }
-        if (zipFile == null) {
-            this.log("Output zipfile name not provided, cannot continue.", Loglevel.BRIEF);
-            return false;
-        }
-        if (manifestFile == null && inventoryToRetrieve == null) {
-            this.log("Neither input manifest nor inventory object provided, cannot continue.", Loglevel.BRIEF);
-            return false;
-        }
-
-        this.log("API version for retrieve will be " + apiVersion, Loglevel.VERBOSE);
-        this.log("Package running number will be " + packageNumber, Loglevel.VERBOSE);
-        this.log("Poll interval for retrieve will be " + secondsBetweenPolls +
-                ", max number of polls: " + maxPolls, Loglevel.VERBOSE);
-        return true;
+        packageManifest = new com.sforce.soap.metadata.Package();
+        final PackageTypeMembers[] packageTypesArray = new PackageTypeMembers[listPackageTypes.size()];
+        packageManifest.setTypes(listPackageTypes.toArray(packageTypesArray));
+        packageManifest.setVersion(this.apiVersion + "");
+        return packageManifest;
     }
 
-    private RetrieveResult waitForRetrieveCompletion(AsyncResult asyncResult) throws Exception {
-        // Wait for the retrieve to complete
-        int poll = 0;
-        long waitTimeMilliSecs = secondsBetweenPolls * ONE_SECOND;
-        String asyncResultId = asyncResult.getId();
-        RetrieveResult result = null;
-        do {
-            if (this.requestCancel) {
-                result = new RetrieveResult();
-                result.setStatus(RetrieveStatus.Failed);
-                return result;
-            }
-            Thread.sleep(waitTimeMilliSecs);
-            if (poll++ > maxPolls) {
-                throw new Exception("Request timed out.  If this is a large set " +
-                        "of metadata components, check that the time allowed " +
-                        "by maxPolls is sufficient.");
-            }
-            result = metadataConnection.checkRetrieveStatus(asyncResultId, true);
-            System.out.println("Package " + packageNumber + " Status: " + result.getStatus());
-        } while (!result.isDone());
-
-        return result;
-    }
-
-    private void setUnpackaged(RetrieveRequest request) throws Exception {
+    private void setUnpackaged(final RetrieveRequest request) throws Exception {
         // Edit the path, if necessary, if your package.xml file is located
         // elsewhere
-        File unpackedManifest = new File(manifestFile);
+        final File unpackedManifest = new File(this.manifestFile);
         System.out.println("Manifest file: " + unpackedManifest.getAbsolutePath());
 
         if (!unpackedManifest.exists() || !unpackedManifest.isFile()) {
@@ -200,86 +231,37 @@ public class OrgRetrieve {
 
         // Note that we use the fully quualified class name because
         // of a collision with the java.lang.Package class
-        com.sforce.soap.metadata.Package p = parsePackageManifest(unpackedManifest);
+        final com.sforce.soap.metadata.Package p = this.parsePackageManifest(unpackedManifest);
         request.setUnpackaged(p);
         request.setSinglePackage(true);
     }
 
-    private com.sforce.soap.metadata.Package parsePackageManifest(File file)
-            throws ParserConfigurationException, IOException, SAXException {
-        com.sforce.soap.metadata.Package packageManifest = null;
-        List<PackageTypeMembers> listPackageTypes = new ArrayList<PackageTypeMembers>();
-        DocumentBuilder db = DocumentBuilderFactory.newInstance().newDocumentBuilder();
-        InputStream inputStream = new FileInputStream(file);
-        Element d = db.parse(inputStream).getDocumentElement();
-        for (Node c = d.getFirstChild(); c != null; c = c.getNextSibling()) {
-            if (c instanceof Element) {
-                Element ce = (Element) c;
-                NodeList nodeList = ce.getElementsByTagName("name");
-                if (nodeList.getLength() == 0) {
-                    continue;
-                }
-                String name = nodeList.item(0).getTextContent();
-                NodeList m = ce.getElementsByTagName("members");
-                List<String> members = new ArrayList<String>();
-                for (int i = 0; i < m.getLength(); i++) {
-                    Node mm = m.item(i);
-                    members.add(mm.getTextContent());
-                }
-                PackageTypeMembers packageTypes = new PackageTypeMembers();
-                packageTypes.setName(name);
-                packageTypes.setMembers(members.toArray(new String[members.size()]));
-                listPackageTypes.add(packageTypes);
+    private RetrieveResult waitForRetrieveCompletion(final AsyncResult asyncResult) throws Exception {
+        // Wait for the retrieve to complete
+        int poll = 0;
+        final long waitTimeMilliSecs = this.secondsBetweenPolls * OrgRetrieve.ONE_SECOND;
+        final String asyncResultId = asyncResult.getId();
+        RetrieveResult result = null;
+        do {
+            if (this.requestCancel) {
+                result = new RetrieveResult();
+                result.setStatus(RetrieveStatus.Failed);
+                return result;
             }
-        }
-        packageManifest = new com.sforce.soap.metadata.Package();
-        PackageTypeMembers[] packageTypesArray = new PackageTypeMembers[listPackageTypes.size()];
-        packageManifest.setTypes(listPackageTypes.toArray(packageTypesArray));
-        packageManifest.setVersion(apiVersion + "");
-        return packageManifest;
+            ;
+            Thread.sleep(waitTimeMilliSecs);
+            if (poll++ > this.maxPolls) {
+                throw new Exception("Request timed out.  If this is a large set " +
+                        "of metadata components, check that the time allowed " +
+                        "by maxPolls is sufficient.");
+            }
+            result = this.metadataConnection.checkRetrieveStatus(asyncResultId, true);
+            System.out.println(
+                    String.valueOf(poll) + "/" + String.valueOf(this.maxPolls) + " Package " + this.zipFile
+                            + " Status: " + result.getStatus());
+        } while (!result.isDone());
+
+        return result;
     }
 
-    public void setMetadataConnection(MetadataConnection metadataConnection) {
-        this.metadataConnection = metadataConnection;
-    }
-
-    public void setZipFile(String zipFile) {
-        this.zipFile = zipFile;
-    }
-
-    public void setManifestFile(String manifestFile) {
-        this.manifestFile = manifestFile;
-    }
-
-    public void setApiVersion(double apiVersion) {
-        this.apiVersion = apiVersion;
-    }
-
-    public void setPackageNumber(int packageNumber) {
-        this.packageNumber = packageNumber;
-    }
-
-    public void setSecondsBetweenPolls(int secondsBetweenPolls) {
-        this.secondsBetweenPolls = secondsBetweenPolls;
-    }
-
-    public void setInventoryToRetrieve(HashMap<String, ArrayList<InventoryItem>> inventoryToRetrieve) {
-        this.inventoryToRetrieve = inventoryToRetrieve;
-    }
-
-    public void setMaxPolls(int maxPolls) {
-        this.maxPolls = maxPolls;
-    }
-
-    private void log(final String logText, final Loglevel level) {
-        if ((this.loglevel == null) || (level.getLevel() <= this.loglevel.getLevel())) {
-            System.out.println(logText);
-        }
-    }
-    //
-    // private void logPartialLine(final String logText, final Loglevel level) {
-    // if (level.getLevel() <= this.loglevel.getLevel()) {
-    // System.out.print(logText);
-    // }
-    // }
 }
