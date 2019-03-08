@@ -2,6 +2,8 @@ package com.kgal.packagebuilder;
 
 import java.io.*;
 import java.util.*;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 import javax.xml.parsers.*;
 
@@ -15,49 +17,37 @@ import com.sforce.soap.metadata.*;
  * Sample that logs in and shows a menu of retrieve and deploy metadata options.
  */
 public class OrgRetrieve {
-	
-	public enum Loglevel {
-        VERBOSE(2), NORMAL(1), BRIEF(0);
-        private final int level;
-
-        Loglevel(final int level) {
-            this.level = level;
-        }
-
-        int getLevel() {
-            return this.level;
-        }
-
-    };
     
-    private Loglevel          loglevel;
-
-	private MetadataConnection metadataConnection;
-
-	private String zipFile;
-
-	// manifest file that controls which components get retrieved
-	private String manifestFile;
-
-	private double apiVersion = 44.0;
-	private int packageNumber = 1;
-	private int secondsBetweenPolls = 15;
-	
-
-	// what to retrieve if not based on package.xml file
-	
-	private HashMap<String, ArrayList<InventoryItem>> inventoryToRetrieve;
-	
 	// one second in milliseconds
-	private static final long ONE_SECOND = 1000;
+    private static final long ONE_SECOND = 1000;
 
-	// maximum number of attempts to deploy the zip file
-	private int maxPolls = 200;
+    private final Logger logger        = Logger.getLogger(Logger.GLOBAL_LOGGER_NAME);
+    private boolean      requestCancel = false;
 
-	public OrgRetrieve(Loglevel level) {
-		loglevel = level;
-	}    
+    private MetadataConnection metadataConnection;
 
+    private String zipFile;
+
+    // manifest file that controls which components get retrieved
+    private String manifestFile;
+    private double apiVersion    = 45.0;
+
+    // what to retrieve if not based on package.xml file
+
+    private int secondsBetweenPolls = 15;
+
+    private HashMap<String, ArrayList<InventoryItem>> inventoryToRetrieve;
+
+    // maximum number of attempts to deploy the zip file
+    private int maxPolls = 200;
+
+    public OrgRetrieve(final Level level) {
+        this.logger.setLevel(level);
+    }
+
+    public void requestCancel() {
+        this.requestCancel = true;
+    }
 	public void retrieveZip() throws Exception {
 		
 		// check parameters
