@@ -17,45 +17,46 @@ import com.sforce.soap.metadata.*;
  * Sample that logs in and shows a menu of retrieve and deploy metadata options.
  */
 public class OrgRetrieve {
-    
+
 	// one second in milliseconds
-    private static final long ONE_SECOND = 1000;
+	private static final long ONE_SECOND = 1000;
 
-    private final Logger logger        = Logger.getLogger(Logger.GLOBAL_LOGGER_NAME);
-    private boolean      requestCancel = false;
+	private final Logger logger        = Logger.getLogger(Logger.GLOBAL_LOGGER_NAME);
+	private boolean      requestCancel = false;
+	private int packageNumber = 1;
 
-    private MetadataConnection metadataConnection;
+	private MetadataConnection metadataConnection;
 
-    private String zipFile;
+	private String zipFile;
 
-    // manifest file that controls which components get retrieved
-    private String manifestFile;
-    private double apiVersion    = 45.0;
+	// manifest file that controls which components get retrieved
+	private String manifestFile;
+	private double apiVersion    = 45.0;
 
-    // what to retrieve if not based on package.xml file
+	// what to retrieve if not based on package.xml file
 
-    private int secondsBetweenPolls = 15;
+	private int secondsBetweenPolls = 15;
 
-    private HashMap<String, ArrayList<InventoryItem>> inventoryToRetrieve;
+	private HashMap<String, ArrayList<InventoryItem>> inventoryToRetrieve;
 
-    // maximum number of attempts to deploy the zip file
-    private int maxPolls = 200;
+	// maximum number of attempts to deploy the zip file
+	private int maxPolls = 200;
 
-    public OrgRetrieve(final Level level) {
-        this.logger.setLevel(level);
-    }
+	public OrgRetrieve(final Level level) {
+		this.logger.setLevel(level);
+	}
 
-    public void requestCancel() {
-        this.requestCancel = true;
-    }
+	public void requestCancel() {
+		this.requestCancel = true;
+	}
 	public void retrieveZip() throws Exception {
-		
+
 		// check parameters
 		if (!checkParameters()) {
 			return;
 		}
-		
-		RetrieveRequest retrieveRequest = new RetrieveRequest();
+
+		final RetrieveRequest retrieveRequest = new RetrieveRequest();
 		// The version in package.xml overrides the version in RetrieveRequest
 		retrieveRequest.setApiVersion(apiVersion);
 		if (manifestFile != null) {
@@ -63,29 +64,29 @@ public class OrgRetrieve {
 		} else {
 			generateRetrieveFilelistBasedOnInventory(retrieveRequest);
 		}
-		
 
-		AsyncResult asyncResult = metadataConnection.retrieve(retrieveRequest);
-		RetrieveResult result = waitForRetrieveCompletion(asyncResult);
+
+		final AsyncResult asyncResult = metadataConnection.retrieve(retrieveRequest);
+		final RetrieveResult result = waitForRetrieveCompletion(asyncResult);
 
 		if (result.getStatus() == RetrieveStatus.Failed) {
 			throw new Exception(result.getErrorStatusCode() + " msg: " +
 					result.getErrorMessage());
 		} else if (result.getStatus() == RetrieveStatus.Succeeded) {  
 			// Print out any warning messages
-			StringBuilder stringBuilder = new StringBuilder();
+			final StringBuilder stringBuilder = new StringBuilder();
 			if (result.getMessages() != null) {
-				for (RetrieveMessage rm : result.getMessages()) {
+				for (final RetrieveMessage rm : result.getMessages()) {
 					stringBuilder.append(rm.getFileName() + " - " + rm.getProblem() + "\n");
 				}
 			}
 			if (stringBuilder.length() > 0) {
-				this.log("Retrieve warnings:\n" + stringBuilder, Loglevel.NORMAL);
+				this.logger.log(Level.INFO, "Retrieve warnings:\n" + stringBuilder);
 			}
 
-			
+
 			File resultsFile = new File(zipFile);
-			this.log("Writing results to zip file: " + resultsFile.getAbsolutePath(), Loglevel.BRIEF);
+			this.logger.log(Level.INFO,"Writing results to zip file: " + resultsFile.getAbsolutePath());
 			FileOutputStream os = new FileOutputStream(resultsFile);
 
 			try {
@@ -96,57 +97,62 @@ public class OrgRetrieve {
 		}
 	}
 
-	private void generateRetrieveFilelistBasedOnInventory(RetrieveRequest retrieveRequest) {
-		
+	private void generateRetrieveFilelistBasedOnInventory(final RetrieveRequest retrieveRequest) {
+
 		// generate the list of filenames to be retrieving
-		
-		ArrayList<String> filenames = new ArrayList<String>();
-		
-		for (String mdType : inventoryToRetrieve.keySet()) {
-			for (InventoryItem i : inventoryToRetrieve.get(mdType)) {
+
+		final ArrayList<String> filenames = new ArrayList<String>();
+
+		for (final String mdType : inventoryToRetrieve.keySet()) {
+			for (final InventoryItem i : inventoryToRetrieve.get(mdType)) {
 				filenames.add(i.getFileName());
 			}
 		}
-		
+
 		String[] specificFiles = new String[filenames.size()];
-		
+
 		specificFiles = filenames.toArray(specificFiles);
-		
+
 		retrieveRequest.setSpecificFiles(specificFiles);
 		retrieveRequest.setSinglePackage(true);
 		retrieveRequest.setPackageNames(null);
 		retrieveRequest.setUnpackaged(null);
-		
+
 	}
 
 	private boolean checkParameters() {
 		if (metadataConnection == null) {
-			this.log("MetadataConnection not provided, cannot continue.", Loglevel.BRIEF);
+			this.logger.log(Level.INFO,"MetadataConnection not provided, cannot continue.");
 			return false;
 		}
 		if (zipFile == null) {
-			this.log("Output zipfile name not provided, cannot continue.", Loglevel.BRIEF);
+			this.logger.log(Level.INFO,"Output zipfile name not provided, cannot continue.");
 			return false;
 		}
 		if (manifestFile == null && inventoryToRetrieve == null) {
-			this.log("Neither input manifest nor inventory object provided, cannot continue.", Loglevel.BRIEF);
+			this.logger.log(Level.INFO,"Neither input manifest nor inventory object provided, cannot continue.");
 			return false;
 		}
-		
-		this.log("API version for retrieve will be " + apiVersion, Loglevel.VERBOSE);
-		this.log("Package running number will be " + packageNumber, Loglevel.VERBOSE);
-		this.log("Poll interval for retrieve will be " + secondsBetweenPolls + 
-				", max number of polls: " + maxPolls, Loglevel.VERBOSE);	
+
+		this.logger.log(Level.FINE, "API version for retrieve will be " + apiVersion);
+		this.logger.log(Level.FINE, "Package running number will be " + packageNumber);
+		this.logger.log(Level.FINE, "Poll interval for retrieve will be " + secondsBetweenPolls + 
+				", max number of polls: " + maxPolls);	
 		return true;
 	}
 
 	private RetrieveResult waitForRetrieveCompletion(AsyncResult asyncResult) throws Exception {
 		// Wait for the retrieve to complete
 		int poll = 0;
-		long waitTimeMilliSecs = secondsBetweenPolls * ONE_SECOND;
-		String asyncResultId = asyncResult.getId();
+		final long waitTimeMilliSecs = secondsBetweenPolls * ONE_SECOND;
+		final String asyncResultId = asyncResult.getId();
 		RetrieveResult result = null;
 		do {
+			if (this.requestCancel) {
+				result = new RetrieveResult();
+				result.setStatus(RetrieveStatus.Failed);
+				return result;
+			}
 			Thread.sleep(waitTimeMilliSecs);
 			if (poll++ > maxPolls) {
 				throw new Exception("Request timed out.  If this is a large set " +
@@ -154,7 +160,7 @@ public class OrgRetrieve {
 						"by maxPolls is sufficient.");
 			}
 			result = metadataConnection.checkRetrieveStatus(asyncResultId, true);
-			System.out.println("Package " + packageNumber + " Status: " + result.getStatus());
+			this.logger.log(Level.FINE,"Package " + packageNumber + " Status: " + result.getStatus());
 		} while (!result.isDone());         
 
 		return result;
@@ -245,16 +251,10 @@ public class OrgRetrieve {
 	public void setMaxPolls(int maxPolls) {
 		this.maxPolls = maxPolls;
 	}
-	
-    private void log(final String logText, final Loglevel level) {
-        if ((this.loglevel == null) || (level.getLevel() <= this.loglevel.getLevel())) {
-            System.out.println(logText);
-        }
-    }
-//
-//    private void logPartialLine(final String logText, final Loglevel level) {
-//        if (level.getLevel() <= this.loglevel.getLevel()) {
-//            System.out.print(logText);
-//        }
-//    }
+	//
+	//    private void logPartialLine(final String logText, final Loglevel level) {
+	//        if (level.getLevel() <= this.loglevel.getLevel()) {
+	//            System.out.print(logText);
+	//        }
+	//    }
 }

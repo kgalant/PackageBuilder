@@ -5,6 +5,8 @@ import java.io.IOException;
 import java.io.StringWriter;
 import java.io.Writer;
 import java.util.HashMap;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
@@ -29,26 +31,12 @@ import org.w3c.dom.NodeList;
 import org.xml.sax.SAXException;
 
 import com.kgal.migrationtoolutils.Utils;
-import com.kgal.packagebuilder.OrgRetrieve.Loglevel;
 import com.kgal.packagebuilder.profilecompare.TagComparer;
 import com.kgal.packagebuilder.profilecompare.UserPermissionsComparer;
 
 public class ProfileCompare {
 
-	public enum Loglevel {
-		VERBOSE(2), NORMAL(1), BRIEF(0);
-		private final int level;
-
-		Loglevel(final int level) {
-			this.level = level;
-		}
-
-		int getLevel() {
-			return this.level;
-		}
-	};
-
-	private Loglevel          loglevel;
+	private final Logger logger        = Logger.getLogger(Logger.GLOBAL_LOGGER_NAME);
 
 	private static final HashMap<String,String> TAGSTOBECOMPARED = new HashMap<String,String>() {
 		{
@@ -58,14 +46,13 @@ public class ProfileCompare {
 
 	private static final String PROFILEFOLDERNAME = "profiles";
 
-	public ProfileCompare(ProfileCompare.Loglevel level) {
-		loglevel = level;
-	}  
-
+	public ProfileCompare(final Level level) {
+		this.logger.setLevel(level);
+	}
 	public static void main(String[] args) 
 			throws InstantiationException, IllegalAccessException, ClassNotFoundException, SAXException, IOException, ParserConfigurationException, TransformerFactoryConfigurationError, TransformerException, XPathExpressionException {
 		// TODO Auto-generated method stub
-		ProfileCompare pc = new ProfileCompare(Loglevel.NORMAL);
+		ProfileCompare pc = new ProfileCompare(Level.INFO);
 		pc.diffTwoProfileFiles(new File("profilecompare/clean/Sysadmclean.profile"), 
 				new File("profilecompare/dirty/Sysadmdirty.profile"), 
 				"profilecompare", "result.xml");
@@ -164,14 +151,14 @@ public class ProfileCompare {
 		String folder = filenameToStripProfilesIn.replace(".zip", "");
 
 		File packageFolder = Utils.unzip(filenameToStripProfilesIn, folder);
-		this.log("Unzipping " + filenameToStripProfilesIn + " to folder " + packageFolder.getAbsolutePath(), ProfileCompare.Loglevel.BRIEF);
+		this.logger.log(Level.FINE, "Unzipping " + filenameToStripProfilesIn + " to folder " + packageFolder.getAbsolutePath());
 
 		// get the profile folder
 
 		File profileFolder = new File(packageFolder.getAbsolutePath() + File.separator + PROFILEFOLDERNAME);
 
 		if (!profileFolder.exists() && !profileFolder.isDirectory()) {
-			this.log("Something wrong: cannot locate profiles folder in the unzipped directory. Cannot continue stripping profiles.", Loglevel.BRIEF);
+			this.logger.log(Level.INFO,"Something wrong: cannot locate profiles folder in the unzipped directory. Cannot continue stripping profiles.");
 			return;
 		} else {
 			// get XML parsing ready
@@ -213,9 +200,4 @@ public class ProfileCompare {
 
 	}
 
-	private void log(final String logText, final Loglevel level) {
-		if ((this.loglevel == null) || (level.getLevel() <= this.loglevel.getLevel())) {
-			System.out.println(logText);
-		}
-	}
 }
