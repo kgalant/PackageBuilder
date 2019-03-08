@@ -92,7 +92,7 @@ public class PackageAndFilePersister implements Callable<PersistResult> {
     }
 
     /**
-     * @see java.lang.Runnable#run()
+     * @see java.lang.Callable#call()
      */
     @Override
     public PersistResult call() throws Exception {
