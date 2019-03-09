@@ -57,11 +57,11 @@ public class GitOutputManager {
 
     }
 
-    public void commitToGit(final Map<String, Map<String, ArrayList<InventoryItem>>> actualInventory)
+    public void commitToGit(final HashMap<String, HashMap<String, ArrayList<InventoryItem>>> actualInventory)
             throws IOException, NoFilepatternException, GitAPIException {
 
         final Git git = Git.open(gitPath.getAbsoluteFile());
-        Map<String, InventoryItem> inventoryLookup = this.flattenInventoryMap(actualInventory);
+        HashMap<String, InventoryItem> inventoryLookup = this.flattenInventoryMap(actualInventory);
 
         if (!this.sourceDirPath.isDirectory()) {
             throw new IOException("MetaData source isn't a directory:" + sourceDirPath.getAbsolutePath());
@@ -164,9 +164,9 @@ public class GitOutputManager {
      *            Array of Maps
      * @return flat map
      */
-    private Map<String, InventoryItem> flattenInventoryMap(
-            final Map<String, Map<String, ArrayList<InventoryItem>>> actualInventory) {
-        Map<String, InventoryItem> result = new HashMap<>();
+    private HashMap<String, InventoryItem> flattenInventoryMap(
+            final HashMap<String, HashMap<String, ArrayList<InventoryItem>>> actualInventory) {
+        HashMap<String, InventoryItem> result = new HashMap<>();
 
         actualInventory.forEach((fileName, curInv) -> {
             curInv.entrySet().forEach(item -> {

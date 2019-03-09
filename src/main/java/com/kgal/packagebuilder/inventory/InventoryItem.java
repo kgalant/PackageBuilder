@@ -6,6 +6,7 @@ import com.sforce.soap.metadata.FileProperties;
 
 public class InventoryItem {
 	public String itemName;
+	public String itemExtendedName;
 	public FileProperties fp;
 	public boolean isFolder;
 	public int itemVersion;
@@ -25,6 +26,11 @@ public class InventoryItem {
 		this.itemName = i;
 		this.fp = f;
 		this.isFolder = false;
+	}
+	
+	public String getExtendedName() {
+		if (fp == null) return itemName;
+		else return fp.getType() + ":" + fp.getFullName();
 	}
 
 	public String getId() {

@@ -39,6 +39,11 @@ public class ProfileCompare {
 	private final Logger logger        = Logger.getLogger(Logger.GLOBAL_LOGGER_NAME);
 
 	private static final HashMap<String,String> TAGSTOBECOMPARED = new HashMap<String,String>() {
+		/**
+		 * 
+		 */
+		private static final long serialVersionUID = 576428229572675412L;
+
 		{
 			put("userPermissions","com.kgal.packagebuilder.profilecompare.UserPermissionsComparer");
 		}
@@ -143,19 +148,13 @@ public class ProfileCompare {
 	 * in the profile
 	 */
 
-	public void stripUserPermissionsFromProfiles(String filenameToStripProfilesIn) 
+	public void stripUserPermissionsFromProfiles(String metadataTargetDirectory) 
 			throws ParserConfigurationException, SAXException, IOException {
 
-		// unzip the file
-
-		String folder = filenameToStripProfilesIn.replace(".zip", "");
-
-		File packageFolder = Utils.unzip(filenameToStripProfilesIn, folder);
-		this.logger.log(Level.FINE, "Unzipping " + filenameToStripProfilesIn + " to folder " + packageFolder.getAbsolutePath());
 
 		// get the profile folder
 
-		File profileFolder = new File(packageFolder.getAbsolutePath() + File.separator + PROFILEFOLDERNAME);
+		File profileFolder = new File(metadataTargetDirectory + File.separator + PROFILEFOLDERNAME);
 
 		if (!profileFolder.exists() && !profileFolder.isDirectory()) {
 			this.logger.log(Level.INFO,"Something wrong: cannot locate profiles folder in the unzipped directory. Cannot continue stripping profiles.");
@@ -171,7 +170,7 @@ public class ProfileCompare {
 
 			for (File profile : profileFolder.listFiles()) {
 				// open, get list of tags to remove
-
+				this.logger.log(Level.FINER,"Stripping profile " + profile.getName());
 				Document myProfileDocument = documentBuilder.parse(profile);
 
 				for (String t : TAGSTOBECOMPARED.keySet()) {
@@ -191,12 +190,6 @@ public class ProfileCompare {
 			}		
 		}
 
-		// rezip the package file
-		
-		Utils.zipIt(filenameToStripProfilesIn, packageFolder.getAbsolutePath());
-		
-		// remove temporary directory
-		FileUtils.deleteDirectory(packageFolder);
 
 	}
 

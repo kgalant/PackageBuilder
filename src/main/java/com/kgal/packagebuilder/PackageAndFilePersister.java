@@ -60,190 +60,200 @@ import com.sforce.soap.metadata.MetadataConnection;
  */
 public class PackageAndFilePersister implements Callable<PersistResult> {
 
-    private final Logger logger = Logger.getLogger(Logger.GLOBAL_LOGGER_NAME);
+	private final Logger logger = Logger.getLogger(Logger.GLOBAL_LOGGER_NAME);
 
-    private final Map<String, ArrayList<InventoryItem>> theMap;
-    private final String                                    filename;
-    private final boolean                                   includeChangeData;
-    private final boolean                                   downloadData;
-    private final boolean                                   unzipDownload;
-    private final double                                    myApiVersion;
-    private final String                                    targetDir;
-    private final String                                    metaSourceDownloadDir;
-    private final MetadataConnection                        metadataConnection;
-    private final PersistResult                             result;
+	private final Map<String, ArrayList<InventoryItem>> theMap;
+	private final String                                    filename;
+	private final boolean                                   includeChangeData;
+	private final boolean                                   downloadData;
+	private final boolean                                   unzipDownload;
+	private final double                                    myApiVersion;
+	private final String                                    targetDir;
+	private final String                                    metaSourceDownloadDir;
+	private final MetadataConnection                        metadataConnection;
+	private final PersistResult                             result;
+	private final boolean 									gitCommit;
 
-    private OrgRetrieve myRetrieve = null;
-    private boolean     localOny   = false;
+	private OrgRetrieve myRetrieve = null;
+	private boolean     localOnly   = false;
 
-    public PackageAndFilePersister(final double myApiVersion,
-            final String targetDir,
-            final String metaSourceDownloadDir,
-            final Map<String, ArrayList<InventoryItem>> theMap,
-            final String filename,
-            final boolean includeChangeData, final boolean download,
-            final boolean unzip,
-            final MetadataConnection metadataConnection) {
-        this.myApiVersion = myApiVersion;
-        this.targetDir = targetDir;
-        this.metaSourceDownloadDir = metaSourceDownloadDir;
-        this.theMap = theMap;
-        this.filename = filename;
-        this.includeChangeData = includeChangeData;
-        this.downloadData = download;
-        this.unzipDownload = unzip;
-        this.metadataConnection = metadataConnection;
-        this.result = new PersistResult(filename);
-    }
+	public PackageAndFilePersister(final double myApiVersion,
+			final String targetDir,
+			final String metaSourceDownloadDir,
+			final Map<String, ArrayList<InventoryItem>> theMap,
+			final String filename,
+			final boolean includeChangeData, final boolean download,
+			final boolean unzip,
+			final MetadataConnection metadataConnection,
+			final boolean gitCommit) {
+		this.myApiVersion = myApiVersion;
+		this.targetDir = targetDir;
+		this.metaSourceDownloadDir = metaSourceDownloadDir;
+		this.theMap = theMap;
+		this.filename = filename;
+		this.includeChangeData = includeChangeData;
+		this.downloadData = download;
+		this.unzipDownload = unzip;
+		this.metadataConnection = metadataConnection;
+		this.result = new PersistResult(filename);
+		this.gitCommit = gitCommit;
+	}
 
-    /**
-     * Switch the persister to local only operation mainly used when you have
-     * both a local ZIP and XML
-     */
-    public void setLocalOnly() {
-        this.localOny = true;
-    }
+	/**
+	 * Switch the persister to local only operation mainly used when you have
+	 * both a local ZIP and XML
+	 */
+	public void setLocalOnly() {
+		this.localOnly = true;
+	}
 
-    /**
-     * @see java.lang.Callable#call()
-     */
-    @Override
-    public PersistResult call() throws Exception {
-        boolean itworked = true;
-        try {
-        	final SimpleDateFormat format1 = new SimpleDateFormat(PackageBuilder.DEFAULT_DATE_FORMAT);
-    		
-    		DocumentBuilderFactory documentFactory = DocumentBuilderFactory.newInstance();
-    		 
-            DocumentBuilder documentBuilder = documentFactory.newDocumentBuilder();
+	/**
+	 * @see java.lang.Callable#call()
+	 */
+	@Override
+	public PersistResult call() throws Exception {
+		boolean itworked = true;
+		try {
+			final SimpleDateFormat format1 = new SimpleDateFormat(PackageBuilder.DEFAULT_DATE_FORMAT);
 
-            Document document = documentBuilder.newDocument();
-            
-            Element root = document.createElement("Package");
-            root.setAttribute("xmlns","http://soap.sforce.com/2006/04/metadata");
-            document.appendChild(root);
-            
-    		final ArrayList<String> mdTypes = new ArrayList<>(theMap.keySet());
-    		Collections.sort(mdTypes);
-            
-    		// get list of types for comment line
-    		ArrayList<String> typesInPackage = new ArrayList<String>();
-    		for (final String mdType : mdTypes) {
-    			if (theMap.get(mdType).size() == 0) {
-    				continue;
-    			} else{
-    				typesInPackage.add(mdType + "(" + theMap.get(mdType).size() + ")");
-    			}
-    		}
-            
-    		String[] typesArray = new String[typesInPackage.size()];
-    		
-    		typesArray = typesInPackage.toArray(typesArray);
-    		
-            Comment comment = document.createComment("Types packaged: " + String.join(", ", typesArray));
-            root.appendChild(comment);
+			DocumentBuilderFactory documentFactory = DocumentBuilderFactory.newInstance();
 
-            Element version = document.createElement("version");
-            version.setTextContent(String.valueOf(this.myApiVersion));
-            root.appendChild(version);
-            
-    		for (final String mdType : mdTypes) {
-    			if (theMap.get(mdType).size() == 0) {
-    				continue;
-    			}
-    			
-    			Element types = document.createElement("types");
-    			root.appendChild(types);
-    			Element name = document.createElement("name");
-    			name.setTextContent(mdType);
-    			types.appendChild(name);
+			DocumentBuilder documentBuilder = documentFactory.newDocumentBuilder();
 
-    			for (final InventoryItem item : theMap.get(mdType)) {
-    				
-    				Element member = document.createElement("members");
-    				member.setTextContent(item.itemName);
+			Document document = documentBuilder.newDocument();
 
-    				if (this.includeChangeData) {
-    					member.setAttribute("lastmodifiedby", item.getLastModifiedByName());
-    					member.setAttribute("lastmodified", format1.format(item.getLastModifiedDate() == null ? 0 : item.getLastModifiedDate().getTime()));
-    					member.setAttribute("lastmodifiedemail", item.lastModifiedByEmail);
-    				}
-    				types.appendChild(member);
-    			}
-    		}
+			Element root = document.createElement("Package");
+			root.setAttribute("xmlns","http://soap.sforce.com/2006/04/metadata");
+			document.appendChild(root);
 
-    		
-    		Transformer tf = TransformerFactory.newInstance().newTransformer();
-            tf.setOutputProperty(OutputKeys.ENCODING, "UTF-8");
-            tf.setOutputProperty(OutputKeys.INDENT, "yes");
-            tf.setOutputProperty(OutputKeys.METHOD, "xml");
-            tf.setOutputProperty("{http://xml.apache.org/xslt}indent-amount", "4");
-            Writer out = new StringWriter();
-            tf.transform(new DOMSource(document), new StreamResult(out));
+			final ArrayList<String> mdTypes = new ArrayList<>(theMap.keySet());
+			Collections.sort(mdTypes);
 
-    		Utils.writeFile(this.targetDir + filename, out.toString());
-            this.logger.log(Level.INFO, "Writing " + new File(this.targetDir + this.filename).getCanonicalPath());
+			// get list of types for comment line
+			ArrayList<String> typesInPackage = new ArrayList<String>();
+			int count = 0;
+			for (final String mdType : mdTypes) {
+				if (theMap.get(mdType).size() == 0) {
+					continue;
+				} else{
+					typesInPackage.add(mdType + "(" + theMap.get(mdType).size() + ")");
+					count += theMap.get(mdType).size();
+				}
+			}
 
-        } catch (final Exception e) {
-            this.result.setStatus(PersistResult.Status.FAILURE);
-            itworked = false;
-            e.printStackTrace();
-        } finally {
-            if (itworked && this.downloadData) {
-                this.downloadAndUnzip(this.localOny, this.unzipDownload);
-            } else {
-                this.result.setStatus((itworked) ? PersistResult.Status.SUCCESS : PersistResult.Status.FAILURE);
+			String[] typesArray = new String[typesInPackage.size()];
 
-            }
-            this.result.setDone();
-        }
-        return this.result;
-    }
+			typesArray = typesInPackage.toArray(typesArray);
 
-    /**
-     * 
-     * @param doNotDownLoad
-     *            = Skip the download step - to repeat the unpackage and unzip
-     *            activity mainly for testing
-     * @throws Exception
-     */
-    private void downloadAndUnzip(final boolean doNotDownLoad, final boolean unzip) throws Exception {
-        final String zipFileName = this.filename.replace("xml", "zip");
-        if (doNotDownLoad) {
-            this.logger.log(Level.INFO, "Working with local packages, no actual download");
-        } else {
-            this.logger.log(Level.INFO,
-                    "Asked to retrieve this package " + this.filename + "from org - will do so now.");
-            myRetrieve = new OrgRetrieve(Level.FINE);
-            myRetrieve.setMetadataConnection(this.metadataConnection);
-            myRetrieve.setZipFile(zipFileName);
-            myRetrieve.setManifestFile(this.targetDir + this.filename);
-            myRetrieve.setApiVersion(this.myApiVersion);
-            myRetrieve.retrieveZip();
-        }
+			Comment comment = document.createComment("Types packaged: " + String.join(", ", typesArray));
+			root.appendChild(comment);
+			Comment comment2 = document.createComment("Items packaged total: " + count);
+			root.appendChild(comment2);
 
-        final File zipResult = new File(zipFileName);
+			Element version = document.createElement("version");
+			version.setTextContent(String.valueOf(this.myApiVersion));
+			root.appendChild(version);
 
-        if (zipResult.exists()) {
-            if (unzip) {
-                final Map<String, Calendar> fileDates = new HashMap<>();
-                this.theMap.entrySet().forEach((entry) -> {
-                    try {
-                        final String curKey = String.valueOf(Utils.getDirForMetadataType(entry.getKey()));
-                        entry.getValue().forEach(item -> {
-                            fileDates.put(curKey + "/" + item.itemName.toLowerCase(), item.getLastModifiedDate());
-                        });
-                    } catch (IOException e) {
-                        e.printStackTrace();
-                    }
-                });
-                final ZipAndFileFixer zff = new ZipAndFileFixer(zipResult, fileDates);
-                zff.extractAndAdjust(this.metaSourceDownloadDir);
-            }
-            this.result.setStatus(Status.SUCCESS);
-        } else {
-            this.logger.log(Level.INFO, "Cancel requested or download ZIP file doesn't exist:" + zipFileName);
-            this.result.setStatus(Status.FAILURE);
-        }
-    }
+			for (final String mdType : mdTypes) {
+				if (theMap.get(mdType).size() == 0) {
+					continue;
+				}
+
+				Element types = document.createElement("types");
+				root.appendChild(types);
+				Element name = document.createElement("name");
+				name.setTextContent(mdType);
+				types.appendChild(name);
+
+				for (final InventoryItem item : theMap.get(mdType)) {
+
+					Element member = document.createElement("members");
+					member.setTextContent(item.itemName);
+
+					if (this.includeChangeData) {
+						member.setAttribute("lastmodifiedby", item.getLastModifiedByName());
+						member.setAttribute("lastmodified", format1.format(item.getLastModifiedDate() == null ? 0 : item.getLastModifiedDate().getTime()));
+						member.setAttribute("lastmodifiedemail", item.lastModifiedByEmail);
+					}
+					types.appendChild(member);
+				}
+			}
+
+
+			Transformer tf = TransformerFactory.newInstance().newTransformer();
+			tf.setOutputProperty(OutputKeys.ENCODING, "UTF-8");
+			tf.setOutputProperty(OutputKeys.INDENT, "yes");
+			tf.setOutputProperty(OutputKeys.METHOD, "xml");
+			tf.setOutputProperty("{http://xml.apache.org/xslt}indent-amount", "4");
+			Writer out = new StringWriter();
+			tf.transform(new DOMSource(document), new StreamResult(out));
+
+			Utils.writeFile(this.targetDir + filename, out.toString());
+			this.logger.log(Level.INFO, "Writing " + new File(this.targetDir + filename).getCanonicalPath());
+
+		} catch (final Exception e) {
+			this.result.setStatus(PersistResult.Status.FAILURE);
+			itworked = false;
+			e.printStackTrace();
+		} finally {
+			if (itworked && this.downloadData) {
+				this.downloadAndUnzip(this.localOnly, this.unzipDownload);
+			} else {
+				this.result.setStatus((itworked) ? PersistResult.Status.SUCCESS : PersistResult.Status.FAILURE);
+
+			}
+			this.result.setDone();
+		}
+		return this.result;
+	}
+
+	/**
+	 * 
+	 * @param doNotDownLoad
+	 *            = Skip the download step - to repeat the unpackage and unzip
+	 *            activity mainly for testing
+	 * @throws Exception
+	 */
+	private void downloadAndUnzip(final boolean doNotDownLoad, final boolean unzip) throws Exception {
+		final String zipFileName = this.filename.replace("xml", "zip");
+		if (doNotDownLoad) {
+			this.logger.log(Level.INFO, "Working with local packages, no actual download");
+		} else {
+			this.logger.log(Level.INFO,
+					"Asked to retrieve this package " + this.filename + "from org - will do so now.");
+			myRetrieve = new OrgRetrieve(Level.FINE);
+			myRetrieve.setMetadataConnection(this.metadataConnection);
+			Utils.checkDir(this.metaSourceDownloadDir);
+			myRetrieve.setZipFile(this.metaSourceDownloadDir + File.separator + zipFileName);
+			myRetrieve.setManifestFile(this.targetDir + this.filename);
+			myRetrieve.setApiVersion(this.myApiVersion);
+			myRetrieve.retrieveZip();
+		}
+
+		final File zipResult = new File(zipFileName);
+
+		if (zipResult.exists()) {
+			if (unzip && !gitCommit) {
+				Utils.unzip(zipFileName, this.metaSourceDownloadDir);
+			} else if (unzip && gitCommit) {
+				final Map<String, Calendar> fileDates = new HashMap<>();
+				this.theMap.entrySet().forEach((entry) -> {
+					try {
+						final String curKey = String.valueOf(Utils.getDirForMetadataType(entry.getKey()));
+						entry.getValue().forEach(item -> {
+							fileDates.put(curKey + "/" + item.itemName.toLowerCase(), item.getLastModifiedDate());
+						});
+					} catch (IOException e) {
+						e.printStackTrace();
+					}
+				});
+				final ZipAndFileFixer zff = new ZipAndFileFixer(zipResult, fileDates);
+				zff.extractAndAdjust(this.metaSourceDownloadDir);
+			}
+			this.result.setStatus(Status.SUCCESS);
+		} else {
+			this.logger.log(Level.INFO, "Cancel requested or download ZIP file doesn't exist:" + zipFileName);
+			this.result.setStatus(Status.FAILURE);
+		}
+	}
 }

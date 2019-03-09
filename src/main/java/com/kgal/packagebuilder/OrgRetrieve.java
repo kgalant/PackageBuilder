@@ -23,7 +23,7 @@ public class OrgRetrieve {
 
 	private final Logger logger        = Logger.getLogger(Logger.GLOBAL_LOGGER_NAME);
 	private boolean      requestCancel = false;
-	private int packageNumber = 1;
+//	private int packageNumber = 1;
 
 	private MetadataConnection metadataConnection;
 
@@ -135,7 +135,7 @@ public class OrgRetrieve {
 		}
 
 		this.logger.log(Level.FINE, "API version for retrieve will be " + apiVersion);
-		this.logger.log(Level.FINE, "Package running number will be " + packageNumber);
+		this.logger.log(Level.FINE, "Package: " + zipFile);
 		this.logger.log(Level.FINE, "Poll interval for retrieve will be " + secondsBetweenPolls + 
 				", max number of polls: " + maxPolls);	
 		return true;
@@ -160,7 +160,7 @@ public class OrgRetrieve {
 						"by maxPolls is sufficient.");
 			}
 			result = metadataConnection.checkRetrieveStatus(asyncResultId, true);
-			this.logger.log(Level.FINE,"Package " + packageNumber + " Status: " + result.getStatus());
+			this.logger.log(Level.FINE,"Package " + zipFile + " Status: " + result.getStatus());
 		} while (!result.isDone());         
 
 		return result;
@@ -236,9 +236,9 @@ public class OrgRetrieve {
 		this.apiVersion = apiVersion;
 	}
 
-	public void setPackageNumber(int packageNumber) {
-		this.packageNumber = packageNumber;
-	}
+//	public void setPackageNumber(int packageNumber) {
+//		this.packageNumber = packageNumber;
+//	}
 
 	public void setSecondsBetweenPolls(int secondsBetweenPolls) {
 		this.secondsBetweenPolls = secondsBetweenPolls;
