@@ -36,9 +36,9 @@ import org.eclipse.jgit.api.errors.NoFilepatternException;
 import org.eclipse.jgit.errors.NoWorkTreeException;
 import org.eclipse.jgit.lib.PersonIdent;
 
+import com.kgal.migrationtoolutils.Utils;
 import com.kgal.packagebuilder.PackageBuilderCommandLine;
 import com.kgal.packagebuilder.inventory.InventoryItem;
-import com.kgal.migrationtoolutils.Utils;
 
 /**
  * @author swissel
@@ -52,7 +52,8 @@ public class GitOutputManager {
 
     public GitOutputManager(final Map<String, String> parameters) {
         this.parameters = parameters;
-        this.gitPath = new File(this.getParam(PackageBuilderCommandLine.BASEDIRECTORY_LONGNAME, "."));
+//        this.gitPath = new File(this.getParam(PackageBuilderCommandLine.METADATATARGETDIR_LONGNAME, "src"));
+        this.gitPath = findGitRoot(this.getParam(PackageBuilderCommandLine.METADATATARGETDIR_LONGNAME, "src"));
         this.sourceDirPath = new File(this.getParam(PackageBuilderCommandLine.METADATATARGETDIR_LONGNAME, "src"));
 
     }
@@ -71,18 +72,19 @@ public class GitOutputManager {
         Map<String, Collection<InventoryItem>> itemsByContributor = this.getFilesByContributor(this.sourceDirPath,
                 inventoryLookup, new HashMap<String, Collection<InventoryItem>>());
 
-        Collection<String> filesOfInterest = this.getFilesToCommit(git);
+        final Collection<String> filesOfInterest = this.getFilesToCommit(git);
 
-        itemsByContributor.entrySet().forEach(entry -> {
+//        itemsByContributor.entrySet().forEach(entry -> {
+        for (String entry : itemsByContributor.keySet()) {
             final Collection<String> actualToBeCommitted = new ArrayList<>();
-            String user = entry.getKey();
-            PersonIdent author = this.getIdenity(user);
-            Collection<InventoryItem> allFiles = entry.getValue();
+            String user = entry;//entry.getKey();
+            PersonIdent author = this.getIdentity(user);
+            Collection<InventoryItem> allFiles = itemsByContributor.get(entry); //entry.getValue();
             System.out.print(author.getName());
             System.out.print(": ");
             System.out.println(allFiles.size());
-            allFiles.forEach(inv -> {
-                String pattern = this.sourceDirPath.getName() + "/" + inv.localFileName;
+            for (final InventoryItem inv : allFiles) {
+            	String pattern = this.sourceDirPath.getName() + "/" + inv.localFileName;
                 if (filesOfInterest.contains(pattern.toLowerCase())) {
                     try {
                         git.add().addFilepattern(pattern).call();
@@ -91,7 +93,18 @@ public class GitOutputManager {
                     }
                     actualToBeCommitted.add(pattern);
                 }
-            });
+            }
+//            allFiles.forEach(inv -> {
+//                String pattern = this.sourceDirPath.getName() + "/" + inv.localFileName;
+//                if (filesOfInterest.contains(pattern.toLowerCase())) {
+//                    try {
+//                        git.add().addFilepattern(pattern).call();
+//                    } catch (GitAPIException e) {
+//                        e.printStackTrace();
+//                    }
+//                    actualToBeCommitted.add(pattern);
+//                }
+//            });
             if (!actualToBeCommitted.isEmpty()) {
                 String commitMessage = "Changes by " + author.getName();
                 System.out.println("Committing " + commitMessage);
@@ -101,11 +114,12 @@ public class GitOutputManager {
                     e.printStackTrace();
                 }
             }
-        });
+    	}
+//        });
 
     }
 
-    private PersonIdent getIdenity(String user) {
+    private PersonIdent getIdentity(String user) {
         String[] identParts = user.split("\\|");
         String userName = identParts[0].equals("null") ? "John Doe" : identParts[0];
         String eMail = identParts[1].contains("@") ? identParts[1] : "john.doe@noreply.com";
@@ -128,6 +142,7 @@ public class GitOutputManager {
                 // TODO: Fix filename to be relative ?
                 ii.localFileName = localfile;
                 this.addInventoryToUser(itemsByContributor, ii);
+                System.out.println("Adding to inventoryLookup: " + ii.fp.getFileName());
             }
 
         }
@@ -173,8 +188,12 @@ public class GitOutputManager {
                 try {
                     String dirPrefix = Utils.getDirForMetadataType(item.getKey());
                     item.getValue().forEach(inv -> {
+                    	// TODO: only add -meta for the types that use it.
                         String newKey = dirPrefix + "/" + inv.itemName;
                         result.put(newKey, inv);
+                        newKey = dirPrefix + "/" + inv.fp.getFileName().substring(inv.fp.getFileName().lastIndexOf("/")+1) + "-meta";
+                        result.put(newKey, inv);
+                        // end TODO
                     });
                 } catch (IOException e) {
                     e.printStackTrace();
@@ -258,4 +277,26 @@ public class GitOutputManager {
         return result;
     }
 
+    private File findGitRoot (String myCurrentDirectory) {
+    	File startingDirectory = new File(myCurrentDirectory);
+    	if (hasGitSubdirectory(startingDirectory)) {
+    		return startingDirectory;
+    	} else {
+    		File parentToCurrentDirectory = startingDirectory.getParentFile();
+    		if (hasGitSubdirectory(parentToCurrentDirectory)) {
+    			return parentToCurrentDirectory;
+    		}
+    	}
+    	return null;
+    }
+    
+    private boolean hasGitSubdirectory (File directory) {
+    	if (!directory.isDirectory()) {
+    		return false;
+    	} 
+    	File potentialGitDirectory = new File(directory.getAbsolutePath() + File.separator + ".git");
+    	return potentialGitDirectory.exists() && potentialGitDirectory.isDirectory();  
+    	
+    }
+    
 }

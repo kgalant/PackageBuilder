@@ -840,6 +840,7 @@ public class PackageBuilder {
 			final PackageAndFilePersister completePackageXML = new PackageAndFilePersister(this.myApiVersion,
 					this.targetDir,
 					this.metaSourceDownloadDir,
+					this.parameters.get(PackageBuilderCommandLine.DESTINATION_LONGNAME),
 					completeInventory,
 					"packageComplete.xml",
 					false, false, false, this.srcMetadataConnection,
@@ -853,6 +854,7 @@ public class PackageBuilder {
 			final PackageAndFilePersister pfp = new PackageAndFilePersister(this.myApiVersion,
 					this.targetDir,
 					this.metaSourceDownloadDir,
+					this.parameters.get(PackageBuilderCommandLine.DESTINATION_LONGNAME),
 					members, curFileName,
 					this.includeChangeData,
 					this.downloadData,
@@ -880,8 +882,8 @@ public class PackageBuilder {
 
 		}).forEach(System.out::println);
 
-		if (!WORKER_THREAD_POOL.awaitTermination(15, TimeUnit.SECONDS)) {
-			this.logger.log(Level.SEVERE, "Threads not terminated within 15 sec");
+		if (!WORKER_THREAD_POOL.awaitTermination(1, TimeUnit.SECONDS)) {
+//			this.logger.log(Level.SEVERE, "Threads not terminated within 15 sec");
 			WORKER_THREAD_POOL.shutdownNow();
 		}
 

@@ -70,6 +70,7 @@ public class PackageAndFilePersister implements Callable<PersistResult> {
 	private final double                                    myApiVersion;
 	private final String                                    targetDir;
 	private final String                                    metaSourceDownloadDir;
+	private final String                                    destinationDir;
 	private final MetadataConnection                        metadataConnection;
 	private final PersistResult                             result;
 	private final boolean 									gitCommit;
@@ -80,6 +81,7 @@ public class PackageAndFilePersister implements Callable<PersistResult> {
 	public PackageAndFilePersister(final double myApiVersion,
 			final String targetDir,
 			final String metaSourceDownloadDir,
+			final String destinationDir,
 			final Map<String, ArrayList<InventoryItem>> theMap,
 			final String filename,
 			final boolean includeChangeData, final boolean download,
@@ -89,6 +91,7 @@ public class PackageAndFilePersister implements Callable<PersistResult> {
 		this.myApiVersion = myApiVersion;
 		this.targetDir = targetDir;
 		this.metaSourceDownloadDir = metaSourceDownloadDir;
+		this.destinationDir = destinationDir;
 		this.theMap = theMap;
 		this.filename = filename;
 		this.includeChangeData = includeChangeData;
@@ -223,14 +226,14 @@ public class PackageAndFilePersister implements Callable<PersistResult> {
 					"Asked to retrieve this package " + this.filename + "from org - will do so now.");
 			myRetrieve = new OrgRetrieve(Level.FINE);
 			myRetrieve.setMetadataConnection(this.metadataConnection);
-			Utils.checkDir(this.metaSourceDownloadDir);
-			myRetrieve.setZipFile(this.metaSourceDownloadDir + File.separator + zipFileName);
+			Utils.checkDir(this.destinationDir);
+			myRetrieve.setZipFile(this.destinationDir + File.separator + zipFileName);
 			myRetrieve.setManifestFile(this.targetDir + this.filename);
 			myRetrieve.setApiVersion(this.myApiVersion);
 			myRetrieve.retrieveZip();
 		}
 
-		final File zipResult = new File(zipFileName);
+		final File zipResult = new File(this.destinationDir + File.separator + zipFileName);
 
 		if (zipResult.exists()) {
 			if (unzip && !gitCommit) {

@@ -246,7 +246,7 @@ public class PackageBuilderCommandLine {
 		if (isOptionSet(GITCOMMIT_LONGNAME)) {
 			this.parameters.put(INCLUDECHANGEDATA_LONGNAME, "true");
 			this.parameters.put(DOWNLOAD_LONGNAME, "true");
-			this.parameters.put(UNZIP, "true");
+			this.parameters.put(UNZIP_LONGNAME, "true");
 		}
 
 		// default download target to current directory if no explicit destination provided
@@ -480,6 +480,11 @@ public class PackageBuilderCommandLine {
 		this.options.addOption(Option.builder(LOCALONLY).longOpt(LOCALONLY_LONGNAME)
 				.desc("Don't re-download package.zip files, but process existing ones")
 				.build());
+		
+		// Deal with local packages only
+				this.options.addOption(Option.builder(UNZIP).longOpt(UNZIP_LONGNAME)
+						.desc("unzip any retrieved package(s)")
+						.build());
 	}
 
 }
