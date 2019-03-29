@@ -20,9 +20,12 @@
  */
 package com.kgal.packagebuilder;
 
+import java.io.File;
+import java.io.FileReader;
+import java.io.IOException;
+import java.io.InputStreamReader;
 import java.rmi.RemoteException;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Map;
 import java.util.Properties;
 
@@ -33,6 +36,9 @@ import org.apache.commons.cli.HelpFormatter;
 import org.apache.commons.cli.Option;
 import org.apache.commons.cli.Options;
 import org.apache.commons.cli.ParseException;
+import org.apache.maven.model.Model;
+import org.apache.maven.model.io.xpp3.MavenXpp3Reader;
+import org.codehaus.plexus.util.xml.pull.XmlPullParserException;
 
 import com.kgal.migrationtoolutils.Utils;
 
@@ -90,6 +96,10 @@ public class PackageBuilderCommandLine {
 	public static final String TODATE_LONGNAME = "todate";
 	public static final String STRIPUSERPERMISSIONS = "spp";
 	public static final String STRIPUSERPERMISSIONS_LONGNAME = "stripprofileuserpermissions";
+	public static final String LOCALONLY = "lo";
+	public static final String LOCALONLY_LONGNAME = "localonly";
+	public static final String UNZIP = "u";
+	public static final String UNZIP_LONGNAME = "unzip";
 
 	/**
 	 * @param args
@@ -97,13 +107,15 @@ public class PackageBuilderCommandLine {
 	 * @throws RemoteException
 	 */
 	public static void main(final String[] args) throws RemoteException, Exception {
+		displayVersionNumber();
 		final PackageBuilderCommandLine pbc = new PackageBuilderCommandLine();
 
 		if (pbc.parseCommandLine(args)) {
 			final PackageBuilder pb = new PackageBuilder(pbc.getParameters());
 			pb.run();
+			System.out.println("Done");
 		}
-
+		System.exit(0);
 	}
 
 	private final Map<String, String> parameters = new HashMap<>();
@@ -176,6 +188,8 @@ public class PackageBuilderCommandLine {
 					this.addBooleanParameterFromProperty(props, VERBOSE_LONGNAME);
 					this.addBooleanParameterFromProperty(props, DOWNLOAD_LONGNAME);
 					this.addBooleanParameterFromProperty(props, GITCOMMIT_LONGNAME);
+					this.addParameterFromProperty(props, LOCALONLY_LONGNAME);
+					this.addParameterFromProperty(props, UNZIP_LONGNAME);
 
 					// add handling for stripping userPermissions from Profiles
 					this.addBooleanParameterFromProperty(props, STRIPUSERPERMISSIONS_LONGNAME);
@@ -208,6 +222,8 @@ public class PackageBuilderCommandLine {
 		this.addBooleanParameter(line, INCLUDECHANGEDATA, INCLUDECHANGEDATA_LONGNAME);
 		this.addBooleanParameter(line, DOWNLOAD, DOWNLOAD_LONGNAME);
 		this.addBooleanParameter(line, GITCOMMIT, GITCOMMIT_LONGNAME);
+		this.addBooleanParameter(line, LOCALONLY, LOCALONLY_LONGNAME);
+		this.addBooleanParameter(line, UNZIP, UNZIP_LONGNAME);
 
 		// adding handling for building a package from a directory
 		this.addCmdlineParameter(line, BASEDIRECTORY, BASEDIRECTORY_LONGNAME);
@@ -237,6 +253,7 @@ public class PackageBuilderCommandLine {
 		if (isOptionSet(GITCOMMIT_LONGNAME)) {
 			this.parameters.put(INCLUDECHANGEDATA_LONGNAME, "true");
 			this.parameters.put(DOWNLOAD_LONGNAME, "true");
+			this.parameters.put(UNZIP_LONGNAME, "true");
 		}
 
 		// default download target to current directory if no explicit destination provided
@@ -465,6 +482,33 @@ public class PackageBuilderCommandLine {
 		this.options.addOption(Option.builder(STRIPUSERPERMISSIONS).longOpt(STRIPUSERPERMISSIONS_LONGNAME)
 				.desc("strip userPermissions tags from profile files (only applies if the -do switch is also used)")
 				.build());
+
+		// Deal with local packages only
+		this.options.addOption(Option.builder(LOCALONLY).longOpt(LOCALONLY_LONGNAME)
+				.desc("Don't re-download package.zip files, but process existing ones")
+				.build());
+		
+		// Deal with local packages only
+				this.options.addOption(Option.builder(UNZIP).longOpt(UNZIP_LONGNAME)
+						.desc("unzip any retrieved package(s)")
+						.build());
+	}
+	
+	private static void displayVersionNumber() throws IOException, XmlPullParserException {
+		MavenXpp3Reader reader = new MavenXpp3Reader();
+	    Model model;
+	    if ((new File("pom.xml")).exists())
+	      model = reader.read(new FileReader("pom.xml"));
+	    else
+	      model = reader.read(
+	        new InputStreamReader(
+	          PackageBuilderCommandLine.class.getResourceAsStream(
+	            "/META-INF/maven/com.kgal/PackageBuilder/pom.xml"
+	          )
+	        )
+	      );
+	    System.out.println(model.getArtifactId() + " " + model.getVersion());
+		
 	}
 
 }

@@ -39,6 +39,10 @@ include data on who last changed the item directly in the members tag of every i
 max number of items to put into a single package.xml (10000 is current max enforced by SF platform, for API 33 and higher, 5000 before)
 * -do,--download
 execute a retrieve from the org using the generated package(s)
+* -u,--unzip
+unzip any retrieved package(s)
+* -mt,--metadatatargetdir
+place unzipped downloaded packages in this directory (else defaults to current directory)
 * -spp,--stripprofileuserpermissions
 if using -do, and the package contains Profiles, unzip the package and remove all userPermissions from each Profile file, then zip again
 
