@@ -20,9 +20,12 @@
  */
 package com.kgal.packagebuilder;
 
+import java.io.File;
+import java.io.FileReader;
+import java.io.IOException;
+import java.io.InputStreamReader;
 import java.rmi.RemoteException;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Map;
 import java.util.Properties;
 
@@ -33,6 +36,9 @@ import org.apache.commons.cli.HelpFormatter;
 import org.apache.commons.cli.Option;
 import org.apache.commons.cli.Options;
 import org.apache.commons.cli.ParseException;
+import org.apache.maven.model.Model;
+import org.apache.maven.model.io.xpp3.MavenXpp3Reader;
+import org.codehaus.plexus.util.xml.pull.XmlPullParserException;
 
 import com.kgal.migrationtoolutils.Utils;
 
@@ -101,6 +107,7 @@ public class PackageBuilderCommandLine {
 	 * @throws RemoteException
 	 */
 	public static void main(final String[] args) throws RemoteException, Exception {
+		displayVersionNumber();
 		final PackageBuilderCommandLine pbc = new PackageBuilderCommandLine();
 
 		if (pbc.parseCommandLine(args)) {
@@ -485,6 +492,23 @@ public class PackageBuilderCommandLine {
 				this.options.addOption(Option.builder(UNZIP).longOpt(UNZIP_LONGNAME)
 						.desc("unzip any retrieved package(s)")
 						.build());
+	}
+	
+	private static void displayVersionNumber() throws IOException, XmlPullParserException {
+		MavenXpp3Reader reader = new MavenXpp3Reader();
+	    Model model;
+	    if ((new File("pom.xml")).exists())
+	      model = reader.read(new FileReader("pom.xml"));
+	    else
+	      model = reader.read(
+	        new InputStreamReader(
+	          PackageBuilderCommandLine.class.getResourceAsStream(
+	            "/META-INF/maven/com.kgal/PackageBuilder/pom.xml"
+	          )
+	        )
+	      );
+	    System.out.println(model.getArtifactId() + " " + model.getVersion());
+		
 	}
 
 }

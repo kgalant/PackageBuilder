@@ -480,7 +480,7 @@ public class PackageBuilder {
 											metadataType.equals("Document") ||
 											metadataType.equals("EmailTemplate") ||
 											metadataType.equals("Report") ||
-											metadataType.equals("StandardValueSet")
+											metadataType.equals("Dashboard")
 											) ||
 									((n.getNamespacePrefix() == null) || n.getNamespacePrefix().equals(""))
 									) {
@@ -489,7 +489,7 @@ public class PackageBuilder {
 								packageInventoryList.put(n.getFullName(), i);
 								this.logger.log(Level.FINER, "Adding item " + i.getExtendedName() + " to inventory.");
 							}
-
+							//
 						}
 					} else {
 						for (final String s : PackageBuilder.STANDARDVALUETYPESARRAY) {
@@ -547,7 +547,7 @@ public class PackageBuilder {
 					packageInventoryList.put(n.getFullName(), new InventoryItem(n.getFullName(), n, true));
 					this.logger.log(Level.FINER, "Adding folder " + n.getFullName() + " to inventory.");
 				}
-				
+
 				itemCount++;
 			}
 			this.logger.log(Level.FINE, foldersToProcess.size() + " folders found. Adding to retrieve list.");
@@ -799,7 +799,7 @@ public class PackageBuilder {
 		final HashMap<String,HashMap<String,ArrayList<InventoryItem>>> files = this.createPackageFiles(myFile);
 
 		writeAndDownloadPackages(files, myFile);
-		
+
 		if (downloadData) {
 
 			if (this.parameters.containsKey(PackageBuilderCommandLine.STRIPUSERPERMISSIONS_LONGNAME) &&
@@ -883,7 +883,7 @@ public class PackageBuilder {
 		}).forEach(System.out::println);
 
 		if (!WORKER_THREAD_POOL.awaitTermination(1, TimeUnit.SECONDS)) {
-//			this.logger.log(Level.SEVERE, "Threads not terminated within 15 sec");
+			//			this.logger.log(Level.SEVERE, "Threads not terminated within 15 sec");
 			WORKER_THREAD_POOL.shutdownNow();
 		}
 
