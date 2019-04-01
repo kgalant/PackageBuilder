@@ -40,6 +40,7 @@ import javax.xml.parsers.DocumentBuilderFactory;
 import javax.xml.parsers.ParserConfigurationException;
 import javax.xml.transform.OutputKeys;
 import javax.xml.transform.Transformer;
+import javax.xml.transform.TransformerConfigurationException;
 import javax.xml.transform.TransformerException;
 import javax.xml.transform.TransformerFactory;
 import javax.xml.transform.TransformerFactoryConfigurationError;
@@ -145,16 +146,6 @@ public class PackageAndFilePersister implements Callable<PersistResult> {
 		if (itworked && this.unzipDownload) {
 			try {
 				this.unzipPackage();
-			} catch (Exception e) {
-				this.result.setStatus(PersistResult.Status.FAILURE);
-				itworked = false;
-				e.printStackTrace();
-			}
-		}
-
-		if (itworked && this.gitCommit) {
-			try {
-				this.prepareForGit();
 			} catch (Exception e) {
 				this.result.setStatus(PersistResult.Status.FAILURE);
 				itworked = false;
@@ -306,4 +297,39 @@ public class PackageAndFilePersister implements Callable<PersistResult> {
 		this.logger.log(Level.INFO, "Writing " + new File(this.targetDir + filename).getCanonicalPath());
 	}
 
+	/**
+	 * 
+	 * @param doNotDownLoad
+	 *            = Skip the download step - to repeat the unpackage and unzip
+	 *            activity mainly for testing
+	 * @throws Exception
+	 */
+	private void downloadAndUnzip(final boolean doNotDownLoad, final boolean unzip) throws Exception {
+
+		final File zipResult = new File(this.destinationDir + File.separator + zipFileName);
+
+		if (zipResult.exists()) {
+			if (unzip && !gitCommit) {
+				Utils.unzip(zipFileName, this.metaSourceDownloadDir);
+			} else if (unzip && gitCommit) {
+				final Map<String, Calendar> fileDates = new HashMap<>();
+				this.theMap.entrySet().forEach((entry) -> {
+					try {
+						final String curKey = String.valueOf(Utils.getDirForMetadataType(entry.getKey()));
+						entry.getValue().forEach(item -> {
+							fileDates.put(curKey + "/" + item.itemName.toLowerCase(), item.getLastModifiedDate());
+						});
+					} catch (IOException e) {
+						e.printStackTrace();
+					}
+				});
+				final ZipAndFileFixer zff = new ZipAndFileFixer(zipResult, fileDates);
+				zff.extractAndAdjust(this.metaSourceDownloadDir);
+			}
+			this.result.setStatus(Status.SUCCESS);
+		} else {
+			this.logger.log(Level.INFO, "Cancel requested or download ZIP file doesn't exist:" + zipFileName);
+			this.result.setStatus(Status.FAILURE);
+		}
+	}
 }
