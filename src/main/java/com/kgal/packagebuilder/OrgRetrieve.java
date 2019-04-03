@@ -169,7 +169,7 @@ public class OrgRetrieve {
 	private void setUnpackaged(RetrieveRequest request) throws Exception {
 		// Edit the path, if necessary, if your package.xml file is located elsewhere
 		File unpackedManifest = new File(manifestFile);
-		this.logger.log(Level.FINE,"Manifest file: " + unpackedManifest.getAbsolutePath());
+		this.logger.log(Level.FINE,"Manifest file: " + unpackedManifest.getCanonicalPath());
 
 		if (!unpackedManifest.exists() || !unpackedManifest.isFile()) {
 			throw new Exception("Should provide a valid retrieve manifest " +
