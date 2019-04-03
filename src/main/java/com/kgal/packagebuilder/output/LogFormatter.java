@@ -33,7 +33,7 @@ import java.util.logging.LogRecord;
  */
 public class LogFormatter extends Formatter {
 
-    private final DateFormat df         = new SimpleDateFormat("hh:mm:ss.SSS");
+    private final DateFormat df         = new SimpleDateFormat("HH:mm:ss.SSS");
     private boolean          appendLine = false;
 
     /**
