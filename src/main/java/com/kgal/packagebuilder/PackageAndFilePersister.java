@@ -27,9 +27,7 @@ import java.io.StringWriter;
 import java.io.Writer;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
-import java.util.Calendar;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.Callable;
 import java.util.logging.Level;
@@ -40,7 +38,6 @@ import javax.xml.parsers.DocumentBuilderFactory;
 import javax.xml.parsers.ParserConfigurationException;
 import javax.xml.transform.OutputKeys;
 import javax.xml.transform.Transformer;
-import javax.xml.transform.TransformerConfigurationException;
 import javax.xml.transform.TransformerException;
 import javax.xml.transform.TransformerFactory;
 import javax.xml.transform.TransformerFactoryConfigurationError;
@@ -77,7 +74,6 @@ public class PackageAndFilePersister implements Callable<PersistResult> {
 	private final String                                    destinationDir;
 	private final MetadataConnection                        metadataConnection;
 	private final PersistResult                             result;
-	private final boolean 									gitCommit;
 
 	private String											zipFileName;
 	private File 											zipResult;
@@ -95,8 +91,7 @@ public class PackageAndFilePersister implements Callable<PersistResult> {
 			final String filename,
 			final boolean includeChangeData, final boolean download,
 			final boolean unzip,
-			final MetadataConnection metadataConnection,
-			final boolean gitCommit) {
+			final MetadataConnection metadataConnection) {
 		this.myApiVersion = myApiVersion;
 		this.targetDir = targetDir;
 		this.metaSourceDownloadDir = metaSourceDownloadDir;
@@ -108,7 +103,6 @@ public class PackageAndFilePersister implements Callable<PersistResult> {
 		this.unzipDownload = unzip;
 		this.metadataConnection = metadataConnection;
 		this.result = new PersistResult(filename);
-		this.gitCommit = gitCommit;
 	}
 
 	/**
@@ -153,17 +147,6 @@ public class PackageAndFilePersister implements Callable<PersistResult> {
 			}
 		}
 
-//		if (itworked && this.gitCommit) {
-//			try {
-//				this.prepareForGit();
-//			} catch (Exception e) {
-//				this.result.setStatus(PersistResult.Status.FAILURE);
-//				itworked = false;
-//				e.printStackTrace();
-//			}
-//		}
-
-
 		if (itworked) {
 			this.result.setStatus(Status.SUCCESS);
 		} else {
@@ -173,31 +156,6 @@ public class PackageAndFilePersister implements Callable<PersistResult> {
 
 		return this.result;
 	}
-
-//	private void prepareForGit() throws IOException {
-//		final Map<String, Calendar> fileDates = new HashMap<>();
-//
-//		// prepare the map with last-modified-date for all the items
-//		
-//		this.theMap.entrySet().forEach((entry) -> {
-//			try {
-//				final String curKey = String.valueOf(Utils.getDirForMetadataType(entry.getKey()));
-//				entry.getValue().forEach(item -> {
-//					fileDates.put(curKey + "/" + item.itemName.toLowerCase(), item.getLastModifiedDate());
-//				});
-//			} catch (IOException e) {
-//				e.printStackTrace();
-//			}
-//		});
-//		
-//		// now walk the contents of the folder we're unzipping into and fix any of the dates 
-//		// need to get all the files for InventoryItems that translate to multiple files
-//		// so classes, etc. that have a -meta.xml, aura that have child directories, etc.
-//		
-//		final ZipAndFileFixer zff = new ZipAndFileFixer(zipResult, fileDates);
-//		zff.extractAndAdjust(this.metaSourceDownloadDir);
-//
-//	}
 
 	private void unzipPackage() throws Exception {
 		final String zipFileNameWithPath = this.destinationDir + File.separator + zipFileName;

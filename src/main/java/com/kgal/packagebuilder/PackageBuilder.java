@@ -185,7 +185,7 @@ public class PackageBuilder {
 			this.mode = OperationMode.ORG;
 		}
 		// This is where the actual work happens creating Package[].xml AND download/unzip assets
-		final HashMap<String, HashMap<String, ArrayList<InventoryItem>>> actualInventory = this.generatePackageXML(inventory);
+		this.generatePackageXML(inventory);
 
 		if (this.gitCommit) {
 			
@@ -929,8 +929,7 @@ public class PackageBuilder {
 					this.parameters.get(PackageBuilderCommandLine.DESTINATION_LONGNAME),
 					completeInventory,
 					"packageComplete.xml",
-					false, false, false, this.srcMetadataConnection,
-					gitCommit);
+					false, false, false, this.srcMetadataConnection);
 			allPersisters.add(completePackageXML);
 		}
 		// End of todo
@@ -945,8 +944,7 @@ public class PackageBuilder {
 					this.includeChangeData,
 					this.downloadData,
 					this.unzipDownload,
-					this.srcMetadataConnection,
-					gitCommit);
+					this.srcMetadataConnection);
 			if (this.simulateDataDownload) {
 				pfp.setLocalOnly();
 			}
