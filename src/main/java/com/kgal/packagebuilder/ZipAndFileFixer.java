@@ -22,16 +22,17 @@
 package com.kgal.packagebuilder;
 
 import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileOutputStream;
 import java.io.IOException;
 import java.util.Calendar;
-import java.util.Map;
-import java.util.zip.ZipEntry;
-import java.util.zip.ZipInputStream;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
-import com.google.common.io.ByteStreams;
-import com.google.common.io.Files;
+import org.apache.commons.io.FileUtils;
+
+import com.kgal.packagebuilder.inventory.InventoryItem;
 
 /**
  * Extracts a given zip file to a target and adjusts the file date to value
@@ -42,98 +43,78 @@ import com.google.common.io.Files;
  */
 public class ZipAndFileFixer {
 
-    /**
-     * @param args
-     * @throws IOException
-     */
-    public static void main(final String[] args) throws IOException {
-        final File test = new File("/Users/swissel/code/daimler/sit/package.1.zip");
-        final ZipAndFileFixer zff = new ZipAndFileFixer(test, null);
-        zff.extractAndAdjust("/Users/swissel/code/daimler/sit/test/");
+	private final Logger logger;
 
-    }
+	public ZipAndFileFixer(HashMap<String, InventoryItem> totalInventory, Logger l) {
+		this.totalInventory = totalInventory;
+		logger = l;
+	}
 
-    private final File                  zip;
-    private final Map<String, Calendar> fileDates;
-    private int filesFixedCount = 0;
+	HashMap<String, InventoryItem> totalInventory;
+
+	public void adjustFileDates(final String targetDirName) throws IOException {
+		final File targetDir = new File((targetDirName == null) ? "." : targetDirName);
+		if (!targetDir.exists() || !targetDir.isDirectory()) {
+			throw new IOException("Target dir doesn't exist or is not a directory:" + targetDirName);
+		}
+
+		Collection<File> myFiles = FileUtils.listFiles(targetDir, null, true);
+		Iterator<File> i = myFiles.iterator(); 
+		while (i.hasNext()) {
+			File f = i.next();
+			if (f.getName().toLowerCase().equals("package.xml")) {
+				continue;
+			}
+
+			InventoryItem item = PackageBuilder.getInventoryItemForFile(totalInventory, f, targetDirName);
+
+			fixFileDate(f, item);
+		}
 
 
-    public ZipAndFileFixer(final File zip, final Map<String, Calendar> fileDates) {
-        this.zip = zip;
-        this.fileDates = fileDates;
-    }
+	}
 
-    public int extractAndAdjust(final String targetDirName) throws IOException {
-        final File targetDir = new File((targetDirName == null) ? "." : targetDirName);
-        Files.createParentDirs(targetDir);
-        if (!targetDir.exists()) {
-            targetDir.mkdir();
-        }
-        if (!targetDir.isDirectory()) {
-            throw new IOException("Target dir is not a directory:" + targetDirName);
-        }
-        final ZipInputStream zis = new ZipInputStream(new FileInputStream(this.zip));
-        ZipEntry zipEntry = zis.getNextEntry();
-        while (zipEntry != null) {
-            final File outFile = this.newFile(targetDir, zipEntry);
-            if (!"package.xml".equalsIgnoreCase(outFile.getName())) {
-                final FileOutputStream out = new FileOutputStream(outFile);
-                ByteStreams.copy(zis, out);
-                out.close();
-                this.fixFileDate(targetDir, outFile.getAbsoluteFile());
+	/*
+	 * This method will take a file and its base folder and match it to the keyed inventory so we know which
+	 * InventoryItem it corresponds to
+	 * 
+	 * e.g. CustomObject is easy	: file objects/MyObject__c.object will need to be matched to a key objects/MyObject__c
+	 * 
+	 * classes are a little harder	: file classes/MyClass.cls will match classes/MyClass, but also
+	 * 								: file classes/MyClass.cls-meta.xml will also have to match classes/MyClass
+	 * 
+	 * components get hairy			: file aura/MyComp/MyComp.cmp will have to match aura/MyComp
+	 * 								: file aura/MyComp/MyComp.cmp-meta.xml will have to match aura/MyComp
+	 * 								: file lwc/MyComp/MyComp.js will have to match lwc/MyComp
+	 * 								: file lwc/MyComp/MyComp.js-meta.xml will have to match lwc/MyComp
+	 * 								: file lwc/MyComp/MyCompHelper.js-meta.xml will have to match lwc/MyComp
+	 * 
+	 * reports, etc. also special	: file reports/myfolder/MyReport.report must match reports/myfolder/MyReport
+	 * 								: file reports/myfolder/myfolder-meta.xml must match reports/myfolder
+	 * 
+	 * and of course emailtempl.    : file email/myfolder/MyTemplate.email must match email/myfolder/MyTemplate
+	 * 								: file email/myfolder/MyTemplate.email must match email/myfolder/MyTemplate
+	 */
 
-            }
-            zipEntry = zis.getNextEntry();
-        }
-
-        zis.close();
-        return this.filesFixedCount;
-    }
-
-    private void fixFileDate(final File targetDir, final File outFile) {
-        final String key = this.nameWithPathWithOutExtension(targetDir, outFile);
-        if (outFile.exists() && (this.fileDates != null) && this.fileDates.containsKey(key)) {
-            try {
-                final Calendar newDate = this.fileDates.get(key);
-                long theTime = newDate.getTimeInMillis();
-                if (!outFile.setLastModified(theTime)) {
-                    System.err.println("Couldn't update file date of "+outFile.getAbsolutePath());
-                }
-                this.filesFixedCount++;
-            } catch (final Exception e) {
-                e.printStackTrace();
-            }
-        } else if (this.fileDates != null) {
-            // Quite a lot - not worth it
-           // System.err.println("No file date found for "+key);
-        }
-
-    }
-
-    /**
-     * Extract the file name including the relative path (below target)
-     * minus the extension to assign the right user
-     */
-    private String nameWithPathWithOutExtension(final File rootDir, final File rawFile) {
-        final String fullString = rawFile.getAbsolutePath();
-        final String rootString = rootDir.getAbsolutePath();
-        final String rawName = fullString.substring(rootString.length()+1).toLowerCase();
-        final String candidate = rawName.endsWith("-meta.xml") ? rawName.substring(0,rawName.length()-9) : rawName;       
-        final String candidate2 = candidate.contains(".") ? candidate.substring(0, candidate.lastIndexOf(".")) : candidate;
-        return (candidate2.startsWith("aura") || candidate2.startsWith("lwc")) ? candidate2.substring(0,candidate2.lastIndexOf("/")) : candidate2;
-    }
-
-    private File newFile(final File destinationDir, final ZipEntry zipEntry) throws IOException {
-        final File destFile = new File(destinationDir, zipEntry.getName());
-
-        final String destDirPath = destinationDir.getCanonicalPath();
-        final String destFilePath = destFile.getCanonicalPath();
-
-        if (!destFilePath.startsWith(destDirPath + File.separator)) {
-            throw new IOException("Entry is outside of the target dir: " + zipEntry.getName());
-        }
-        Files.createParentDirs(destFile);
-        return destFile;
-    }
-
+	private void fixFileDate(final File file, final InventoryItem item) throws IOException {
+		if (file.exists() && item != null) {
+			if (item.getLastModifiedDate() != null ) {
+				try {
+					final Calendar newDate = item.getLastModifiedDate();
+					long theTime = newDate.getTimeInMillis();
+					if (!file.setLastModified(theTime)) {
+						logger.log(Level.INFO,"Couldn't update file date of " + file.getCanonicalPath());
+					} else {
+						logger.log(Level.FINE,"Updated file date of " + file.getCanonicalPath());
+					}
+				} catch (final Exception e) {
+					e.printStackTrace();
+				}
+			} else {
+				logger.log(Level.FINE,"No LastModifiedDate for item " + file.getCanonicalPath());
+			}
+		} else {
+			logger.log(Level.WARNING,"Couldn't find file " + file.getCanonicalPath());
+		}
+	}
 }

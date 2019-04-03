@@ -86,7 +86,7 @@ public class OrgRetrieve {
 
 
 			File resultsFile = new File(zipFile);
-			this.logger.log(Level.INFO,"Writing results to zip file: " + resultsFile.getAbsolutePath());
+			this.logger.log(Level.INFO,"Writing results to zip file: " + resultsFile.getCanonicalPath());
 			FileOutputStream os = new FileOutputStream(resultsFile);
 
 			try {
@@ -169,7 +169,7 @@ public class OrgRetrieve {
 	private void setUnpackaged(RetrieveRequest request) throws Exception {
 		// Edit the path, if necessary, if your package.xml file is located elsewhere
 		File unpackedManifest = new File(manifestFile);
-		System.out.println("Manifest file: " + unpackedManifest.getAbsolutePath());
+		this.logger.log(Level.FINE,"Manifest file: " + unpackedManifest.getAbsolutePath());
 
 		if (!unpackedManifest.exists() || !unpackedManifest.isFile()) {
 			throw new Exception("Should provide a valid retrieve manifest " +
@@ -251,10 +251,4 @@ public class OrgRetrieve {
 	public void setMaxPolls(int maxPolls) {
 		this.maxPolls = maxPolls;
 	}
-	//
-	//    private void logPartialLine(final String logText, final Loglevel level) {
-	//        if (level.getLevel() <= this.loglevel.getLevel()) {
-	//            System.out.print(logText);
-	//        }
-	//    }
 }

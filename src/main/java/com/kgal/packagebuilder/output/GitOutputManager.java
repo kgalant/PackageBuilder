@@ -28,6 +28,8 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 import org.eclipse.jgit.api.Git;
 import org.eclipse.jgit.api.Status;
@@ -36,8 +38,9 @@ import org.eclipse.jgit.api.errors.NoFilepatternException;
 import org.eclipse.jgit.errors.NoWorkTreeException;
 import org.eclipse.jgit.lib.PersonIdent;
 
-import com.kgal.migrationtoolutils.Utils;
+import com.kgal.packagebuilder.PackageBuilder;
 import com.kgal.packagebuilder.PackageBuilderCommandLine;
+import com.kgal.packagebuilder.inventory.GitInventoryItem;
 import com.kgal.packagebuilder.inventory.InventoryItem;
 
 /**
@@ -49,28 +52,29 @@ public class GitOutputManager {
 	private final Map<String, String> parameters;
 	private final File                gitPath;
 	private final File                sourceDirPath;
+	private final Logger 				logger;
 
-	public GitOutputManager(final Map<String, String> parameters) {
+	public GitOutputManager(final Map<String, String> parameters, Logger l) {
 		this.parameters = parameters;
 		//        this.gitPath = new File(this.getParam(PackageBuilderCommandLine.METADATATARGETDIR_LONGNAME, "src"));
 		this.gitPath = findGitRoot(this.getParam(PackageBuilderCommandLine.METADATATARGETDIR_LONGNAME, "src"));
 		this.sourceDirPath = new File(this.getParam(PackageBuilderCommandLine.METADATATARGETDIR_LONGNAME, "src"));
-
+		logger = l;
 	}
 
-	public void commitToGit(final HashMap<String, HashMap<String, ArrayList<InventoryItem>>> actualInventory)
+	public void commitToGit(final HashMap<String, InventoryItem> inventoryLookup)
 			throws IOException, NoFilepatternException, GitAPIException {
 
 		final Git git = Git.open(gitPath.getAbsoluteFile());
-		HashMap<String, InventoryItem> inventoryLookup = this.flattenInventoryMap(actualInventory);
+		//		HashMap<String, InventoryItem> inventoryLookup = this.flattenInventoryMap(actualInventory);
 
 		if (!this.sourceDirPath.isDirectory()) {
-			throw new IOException("MetaData source isn't a directory:" + sourceDirPath.getAbsolutePath());
+			throw new IOException("MetaData source isn't a directory:" + sourceDirPath.getCanonicalPath());
 		}
 
 		// Group entries by who has changed them and add them to a list
-		Map<String, Collection<InventoryItem>> itemsByContributor = this.getFilesByContributor(this.sourceDirPath,
-				inventoryLookup, new HashMap<String, Collection<InventoryItem>>());
+		Map<String, Collection<GitInventoryItem>> itemsByContributor = this.getFilesByContributor(this.sourceDirPath.getPath(), this.sourceDirPath,
+				inventoryLookup, new HashMap<String, Collection<GitInventoryItem>>());
 
 		final Collection<String> filesOfInterest = this.getFilesToCommit(git);
 
@@ -79,12 +83,11 @@ public class GitOutputManager {
 			final Collection<String> actualToBeCommitted = new ArrayList<>();
 			String user = entry;//entry.getKey();
 			PersonIdent author = this.getIdentity(user);
-			Collection<InventoryItem> allFiles = itemsByContributor.get(entry); //entry.getValue();
-			System.out.print(author.getName());
-			System.out.print(": ");
-			System.out.println(allFiles.size());
-			for (final InventoryItem inv : allFiles) {
-				String pattern = this.sourceDirPath.getName() + "/" + inv.localFileName;
+			Collection<GitInventoryItem> allFiles = itemsByContributor.get(entry); //entry.getValue();
+			logger.log(Level.FINE, author.getName() + ": " + allFiles.size());
+			for (final GitInventoryItem gii : allFiles) {
+				File file = gii.file;
+				String pattern = file.getCanonicalPath().replace(sourceDirPath.getCanonicalPath(), this.sourceDirPath.getName());
 				if (filesOfInterest.contains(pattern.toLowerCase())) {
 					try {
 						git.add().addFilepattern(pattern).call();
@@ -94,17 +97,7 @@ public class GitOutputManager {
 					actualToBeCommitted.add(pattern);
 				}
 			}
-			//            allFiles.forEach(inv -> {
-			//                String pattern = this.sourceDirPath.getName() + "/" + inv.localFileName;
-			//                if (filesOfInterest.contains(pattern.toLowerCase())) {
-			//                    try {
-			//                        git.add().addFilepattern(pattern).call();
-			//                    } catch (GitAPIException e) {
-			//                        e.printStackTrace();
-			//                    }
-			//                    actualToBeCommitted.add(pattern);
-			//                }
-			//            });
+
 			if (!actualToBeCommitted.isEmpty()) {
 				String commitMessage = "Changes by " + author.getName();
 				System.out.println("Committing " + commitMessage);
@@ -126,25 +119,25 @@ public class GitOutputManager {
 		return new PersonIdent(userName, eMail);
 	}
 
-	private Map<String, Collection<InventoryItem>> getFilesByContributor(File curFile,
+	private Map<String, Collection<GitInventoryItem>> getFilesByContributor(String baseDirectory, File curFile,
 			Map<String, InventoryItem> inventoryLookup,
-			HashMap<String, Collection<InventoryItem>> itemsByContributor) {
+			HashMap<String, Collection<GitInventoryItem>> itemsByContributor) throws IOException {
 		if (curFile.isDirectory()) {
 			for (File f : curFile.listFiles()) {
-				this.getFilesByContributor(f, inventoryLookup, itemsByContributor);
+				this.getFilesByContributor(baseDirectory, f, inventoryLookup, itemsByContributor);
 			}
 		} else {
 			// Process the actual file - if it can be found in the list
 			String localfile = curFile.getAbsolutePath().substring(this.sourceDirPath.getAbsolutePath().length() + 1);
-			String key = localfile.substring(0, localfile.lastIndexOf("."));
-			if (inventoryLookup.containsKey(key)) {
-				InventoryItem ii = inventoryLookup.get(key);
-				// TODO: Fix filename to be relative ?
+			InventoryItem ii = PackageBuilder.getInventoryItemForFile(inventoryLookup, curFile, baseDirectory);
+			// TODO: Fix filename to be relative ?
+			if (ii != null) {
 				ii.localFileName = localfile;
-				this.addInventoryToUser(itemsByContributor, ii);
-				System.out.println("Adding to inventoryLookup: " + (ii.fp != null ? ii.fp.getFileName() : ii.getFullName()));
+				this.addInventoryToUser(itemsByContributor, ii, curFile);
+				logger.log(Level.FINE, "Adding to inventory by user: " + (ii.fp != null ? ii.fp.getFileName() : ii.getFullName()));			
+			} else {
+				logger.log(Level.INFO, "Couldn't map file for adding to GIT: " + curFile.getCanonicalPath());
 			}
-
 		}
 		return itemsByContributor;
 	}
@@ -155,54 +148,31 @@ public class GitOutputManager {
 	 * @param itemsByContributor
 	 * @param ii
 	 */
-	private void addInventoryToUser(HashMap<String, Collection<InventoryItem>> itemsByContributor, InventoryItem ii) {
-		String userKey = String.valueOf(ii.lastModifiedByUsername) + "|" + String.valueOf(ii.lastModifiedByEmail);
-		Collection<InventoryItem> curColl = itemsByContributor.containsKey(userKey)
-				? itemsByContributor.get(userKey)
-						: new ArrayList<>();
-				curColl.add(ii);
-				itemsByContributor.put(userKey, curColl);
-
+	private void addInventoryToUser(HashMap<String, Collection<GitInventoryItem>> itemsByContributor, InventoryItem ii, File file) {
+		
+		// generate a unique key for adding to GIT
+		// need to handle the fact that some items may be going in that don't have a lastmodifiedby (e.g. standard objects that haven't been touched by a user)
+		String userName = 	String.valueOf(ii.lastModifiedByUsername) == null || 
+							String.valueOf(ii.lastModifiedByUsername).equals("") || 
+							String.valueOf(ii.lastModifiedByUsername).equals("null") ? "OOTB" : String.valueOf(ii.lastModifiedByUsername);
+		String userEmail = 	String.valueOf(ii.lastModifiedByEmail) == null || 
+							String.valueOf(ii.lastModifiedByEmail).equals("") ||
+							String.valueOf(ii.lastModifiedByEmail).equals("null") ? "standard@salesforce.com" : String.valueOf(ii.lastModifiedByEmail);
+		String userKey = userName + "|" + userEmail;
+		GitInventoryItem gii = new GitInventoryItem(ii, file);
+		if (itemsByContributor.containsKey(userKey)) {
+			itemsByContributor.get(userKey).add(gii);
+		} else {
+			ArrayList<GitInventoryItem> newUserItems = new ArrayList<>();
+			newUserItems.add(gii);
+			itemsByContributor.put(userKey, newUserItems);
+		}
 	}
 
 	private String getParam(final String paramName, final String defaultValue) {
 		return (this.parameters.containsKey(paramName) && this.parameters.get(paramName) != null)
 				? this.parameters.get(paramName)
 						: defaultValue;
-	}
-
-	/**
-	 * Flatten the array - map - list of inventory items into one flat list with
-	 * the file name as key
-	 * 
-	 * @param actualInventory
-	 *            Array of Maps
-	 * @return flat map
-	 */
-	private HashMap<String, InventoryItem> flattenInventoryMap(
-			final HashMap<String, HashMap<String, ArrayList<InventoryItem>>> actualInventory) {
-		HashMap<String, InventoryItem> result = new HashMap<>();
-
-		actualInventory.forEach((fileName, curInv) -> {
-			curInv.entrySet().forEach(item -> {
-				try {
-					String dirPrefix = Utils.getDirForMetadataType(item.getKey());
-					item.getValue().forEach(inv -> {
-						// TODO: only add -meta for the types that use it.
-						String newKey = dirPrefix + "/" + inv.itemName;
-						result.put(newKey, inv);
-//						if (inv.fp != null) {
-							newKey = dirPrefix + "/" + inv.fp.getFileName().substring(inv.fp.getFileName().lastIndexOf("/")+1) + "-meta";
-							result.put(newKey, inv);
-//						}
-						// end TODO
-					});
-				} catch (IOException e) {
-					e.printStackTrace();
-				}
-			});
-		});
-		return result;
 	}
 
 	private Collection<String> getFilesToCommit(Git git) {
@@ -232,39 +202,39 @@ public class GitOutputManager {
 
 			// Remove this after stuff works as expected
 			for (String conflict : conflicting) {
-				System.out.println("Conflicting: " + conflict);
+				logger.log(Level.FINE, "Conflicting: " + conflict);
 			}
 
 			for (String add : added) {
-				System.out.println("Added: " + add);
+				logger.log(Level.FINE, "Added: " + add);
 			}
 
 			for (String change : changed) {
-				System.out.println("Change: " + change);
+				logger.log(Level.FINE, "Change: " + change);
 			}
 
 			for (String miss : missing) {
-				System.out.println("Missing: " + miss);
+				logger.log(Level.FINE, "Missing: " + miss);
 			}
 
 			for (String modify : modified) {
-				System.out.println("Modification: " + modify);
+				logger.log(Level.FINE, "Modification: " + modify);
 			}
 
 			for (String remove : removed) {
-				System.out.println("Removed: " + remove);
+				logger.log(Level.FINE, "Removed: " + remove);
 			}
 
 			for (String uncommitted : uncommittedChanges) {
-				System.out.println("Uncommitted: " + uncommitted);
+				logger.log(Level.FINE, "Uncommitted: " + uncommitted);
 			}
 
 			for (String untrack : untracked) {
-				System.out.println("Untracked: " + untrack);
+				logger.log(Level.FINE, "Untracked: " + untrack);
 			}
 
 			for (String untrack : untrackedFolders) {
-				System.out.println("Untracked Folder: " + untrack);
+				logger.log(Level.FINE, "Untracked Folder: " + untrack);
 			}
 
 		} catch (NoWorkTreeException | GitAPIException e) {

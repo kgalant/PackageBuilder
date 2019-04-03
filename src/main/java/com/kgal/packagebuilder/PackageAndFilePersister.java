@@ -37,9 +37,13 @@ import java.util.logging.Logger;
 
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
+import javax.xml.parsers.ParserConfigurationException;
 import javax.xml.transform.OutputKeys;
 import javax.xml.transform.Transformer;
+import javax.xml.transform.TransformerConfigurationException;
+import javax.xml.transform.TransformerException;
 import javax.xml.transform.TransformerFactory;
+import javax.xml.transform.TransformerFactoryConfigurationError;
 import javax.xml.transform.dom.DOMSource;
 import javax.xml.transform.stream.StreamResult;
 
@@ -75,8 +79,13 @@ public class PackageAndFilePersister implements Callable<PersistResult> {
 	private final PersistResult                             result;
 	private final boolean 									gitCommit;
 
+	private String											zipFileName;
+	private File 											zipResult;
+
 	private OrgRetrieve myRetrieve = null;
 	private boolean     localOnly   = false;
+
+
 
 	public PackageAndFilePersister(final double myApiVersion,
 			final String targetDir,
@@ -117,146 +126,182 @@ public class PackageAndFilePersister implements Callable<PersistResult> {
 	public PersistResult call() throws Exception {
 		boolean itworked = true;
 		try {
-			final SimpleDateFormat format1 = new SimpleDateFormat(PackageBuilder.DEFAULT_DATE_FORMAT);
-
-			DocumentBuilderFactory documentFactory = DocumentBuilderFactory.newInstance();
-
-			DocumentBuilder documentBuilder = documentFactory.newDocumentBuilder();
-
-			Document document = documentBuilder.newDocument();
-
-			Element root = document.createElement("Package");
-			root.setAttribute("xmlns","http://soap.sforce.com/2006/04/metadata");
-			document.appendChild(root);
-
-			final ArrayList<String> mdTypes = new ArrayList<>(theMap.keySet());
-			Collections.sort(mdTypes);
-
-			// get list of types for comment line
-			ArrayList<String> typesInPackage = new ArrayList<String>();
-			int count = 0;
-			for (final String mdType : mdTypes) {
-				if (theMap.get(mdType).size() == 0) {
-					continue;
-				} else{
-					typesInPackage.add(mdType + "(" + theMap.get(mdType).size() + ")");
-					count += theMap.get(mdType).size();
-				}
-			}
-
-			String[] typesArray = new String[typesInPackage.size()];
-
-			typesArray = typesInPackage.toArray(typesArray);
-
-			Comment comment = document.createComment("Types packaged: " + String.join(", ", typesArray));
-			root.appendChild(comment);
-			Comment comment2 = document.createComment("Items packaged total: " + count);
-			root.appendChild(comment2);
-
-			Element version = document.createElement("version");
-			version.setTextContent(String.valueOf(this.myApiVersion));
-			root.appendChild(version);
-
-			for (final String mdType : mdTypes) {
-				if (theMap.get(mdType).size() == 0) {
-					continue;
-				}
-
-				Element types = document.createElement("types");
-				root.appendChild(types);
-				Element name = document.createElement("name");
-				name.setTextContent(mdType);
-				types.appendChild(name);
-
-				for (final InventoryItem item : theMap.get(mdType)) {
-
-					Element member = document.createElement("members");
-					member.setTextContent(item.itemName);
-
-					if (this.includeChangeData) {
-						member.setAttribute("lastmodifiedby", item.getLastModifiedByName());
-						member.setAttribute("lastmodified", format1.format(item.getLastModifiedDate() == null ? 0 : item.getLastModifiedDate().getTime()));
-						member.setAttribute("lastmodifiedemail", item.lastModifiedByEmail);
-					}
-					types.appendChild(member);
-				}
-			}
-
-
-			Transformer tf = TransformerFactory.newInstance().newTransformer();
-			tf.setOutputProperty(OutputKeys.ENCODING, "UTF-8");
-			tf.setOutputProperty(OutputKeys.INDENT, "yes");
-			tf.setOutputProperty(OutputKeys.METHOD, "xml");
-			tf.setOutputProperty("{http://xml.apache.org/xslt}indent-amount", "4");
-			Writer out = new StringWriter();
-			tf.transform(new DOMSource(document), new StreamResult(out));
-
-			Utils.writeFile(this.targetDir + filename, out.toString());
-			this.logger.log(Level.INFO, "Writing " + new File(this.targetDir + filename).getCanonicalPath());
-
-		} catch (final Exception e) {
+			writePackageXML();
+		} catch (Exception e) {
 			this.result.setStatus(PersistResult.Status.FAILURE);
 			itworked = false;
 			e.printStackTrace();
-		} finally {
-			if (itworked && this.downloadData) {
-				this.downloadAndUnzip(this.localOnly, this.unzipDownload);
-			} else {
-				this.result.setStatus((itworked) ? PersistResult.Status.SUCCESS : PersistResult.Status.FAILURE);
-
-			}
-			this.result.setDone();
-		}
-		return this.result;
-	}
-
-	/**
-	 * 
-	 * @param doNotDownLoad
-	 *            = Skip the download step - to repeat the unpackage and unzip
-	 *            activity mainly for testing
-	 * @throws Exception
-	 */
-	private void downloadAndUnzip(final boolean doNotDownLoad, final boolean unzip) throws Exception {
-		final String zipFileName = this.filename.replace("xml", "zip");
-		if (doNotDownLoad) {
-			this.logger.log(Level.INFO, "Working with local packages, no actual download");
-		} else {
-			this.logger.log(Level.INFO,
-					"Asked to retrieve this package " + this.filename + "from org - will do so now.");
-			myRetrieve = new OrgRetrieve(Level.FINE);
-			myRetrieve.setMetadataConnection(this.metadataConnection);
-			Utils.checkDir(this.destinationDir);
-			myRetrieve.setZipFile(this.destinationDir + File.separator + zipFileName);
-			myRetrieve.setManifestFile(this.targetDir + this.filename);
-			myRetrieve.setApiVersion(this.myApiVersion);
-			myRetrieve.retrieveZip();
 		}
 
-		final File zipResult = new File(this.destinationDir + File.separator + zipFileName);
-
-		if (zipResult.exists()) {
-			if (unzip && !gitCommit) {
-				Utils.unzip(zipFileName, this.metaSourceDownloadDir);
-			} else if (unzip && gitCommit) {
-				final Map<String, Calendar> fileDates = new HashMap<>();
-				this.theMap.entrySet().forEach((entry) -> {
-					try {
-						final String curKey = String.valueOf(Utils.getDirForMetadataType(entry.getKey()));
-						entry.getValue().forEach(item -> {
-							fileDates.put(curKey + "/" + item.itemName.toLowerCase(), item.getLastModifiedDate());
-						});
-					} catch (IOException e) {
-						e.printStackTrace();
-					}
-				});
-				final ZipAndFileFixer zff = new ZipAndFileFixer(zipResult, fileDates);
-				zff.extractAndAdjust(this.metaSourceDownloadDir);
+		if (itworked && this.downloadData && !this.localOnly) {
+			try {
+				this.downloadPackage();
+			} catch (Exception e) {
+				this.result.setStatus(PersistResult.Status.FAILURE);
+				itworked = false;
+				e.printStackTrace();
 			}
+		}
+
+		if (itworked && (this.downloadData || this.localOnly) && this.unzipDownload) {
+			try {
+				this.unzipPackage();
+			} catch (Exception e) {
+				this.result.setStatus(PersistResult.Status.FAILURE);
+				itworked = false;
+				e.printStackTrace();
+			}
+		}
+
+//		if (itworked && this.gitCommit) {
+//			try {
+//				this.prepareForGit();
+//			} catch (Exception e) {
+//				this.result.setStatus(PersistResult.Status.FAILURE);
+//				itworked = false;
+//				e.printStackTrace();
+//			}
+//		}
+
+
+		if (itworked) {
 			this.result.setStatus(Status.SUCCESS);
 		} else {
 			this.logger.log(Level.INFO, "Cancel requested or download ZIP file doesn't exist:" + zipFileName);
 			this.result.setStatus(Status.FAILURE);
 		}
+
+		return this.result;
+	}
+
+//	private void prepareForGit() throws IOException {
+//		final Map<String, Calendar> fileDates = new HashMap<>();
+//
+//		// prepare the map with last-modified-date for all the items
+//		
+//		this.theMap.entrySet().forEach((entry) -> {
+//			try {
+//				final String curKey = String.valueOf(Utils.getDirForMetadataType(entry.getKey()));
+//				entry.getValue().forEach(item -> {
+//					fileDates.put(curKey + "/" + item.itemName.toLowerCase(), item.getLastModifiedDate());
+//				});
+//			} catch (IOException e) {
+//				e.printStackTrace();
+//			}
+//		});
+//		
+//		// now walk the contents of the folder we're unzipping into and fix any of the dates 
+//		// need to get all the files for InventoryItems that translate to multiple files
+//		// so classes, etc. that have a -meta.xml, aura that have child directories, etc.
+//		
+//		final ZipAndFileFixer zff = new ZipAndFileFixer(zipResult, fileDates);
+//		zff.extractAndAdjust(this.metaSourceDownloadDir);
+//
+//	}
+
+	private void unzipPackage() throws Exception {
+		final String zipFileNameWithPath = this.destinationDir + File.separator + zipFileName;
+		zipResult = new File(zipFileNameWithPath);
+
+		if (zipResult.exists()) {
+			Utils.unzip(zipFileName, this.metaSourceDownloadDir);
+		} else {
+			throw new Exception("Asked to unzip " + zipFileNameWithPath + " but file not found, something is wrong.");
+		}		
+	}
+
+	private void downloadPackage() throws Exception {
+		zipFileName = this.filename.replace("xml", "zip");
+
+		this.logger.log(Level.INFO,
+				"Asked to retrieve this package " + this.filename + " from org - will do so now.");
+		myRetrieve = new OrgRetrieve(Level.FINE);
+		myRetrieve.setMetadataConnection(this.metadataConnection);
+		Utils.checkDir(this.destinationDir);
+		myRetrieve.setZipFile(this.destinationDir + File.separator + zipFileName);
+		myRetrieve.setManifestFile(this.targetDir + this.filename);
+		myRetrieve.setApiVersion(this.myApiVersion);
+		myRetrieve.retrieveZip();
+
+
+	}
+
+	private void writePackageXML() throws ParserConfigurationException, TransformerFactoryConfigurationError, TransformerException, IOException {
+		final SimpleDateFormat format1 = new SimpleDateFormat(PackageBuilder.DEFAULT_DATE_FORMAT);
+
+		DocumentBuilderFactory documentFactory = DocumentBuilderFactory.newInstance();
+
+		DocumentBuilder documentBuilder = documentFactory.newDocumentBuilder();
+
+		Document document = documentBuilder.newDocument();
+
+		Element root = document.createElement("Package");
+		root.setAttribute("xmlns","http://soap.sforce.com/2006/04/metadata");
+		document.appendChild(root);
+
+		final ArrayList<String> mdTypes = new ArrayList<>(theMap.keySet());
+		Collections.sort(mdTypes);
+
+		// get list of types for comment line
+		ArrayList<String> typesInPackage = new ArrayList<String>();
+		int count = 0;
+		for (final String mdType : mdTypes) {
+			if (theMap.get(mdType).size() == 0) {
+				continue;
+			} else{
+				typesInPackage.add(mdType + "(" + theMap.get(mdType).size() + ")");
+				count += theMap.get(mdType).size();
+			}
+		}
+
+		String[] typesArray = new String[typesInPackage.size()];
+
+		typesArray = typesInPackage.toArray(typesArray);
+
+		Comment comment = document.createComment("Types packaged: " + String.join(", ", typesArray));
+		root.appendChild(comment);
+		Comment comment2 = document.createComment("Items packaged total: " + count);
+		root.appendChild(comment2);
+
+		Element version = document.createElement("version");
+		version.setTextContent(String.valueOf(this.myApiVersion));
+		root.appendChild(version);
+
+		for (final String mdType : mdTypes) {
+			if (theMap.get(mdType).size() == 0) {
+				continue;
+			}
+
+			Element types = document.createElement("types");
+			root.appendChild(types);
+			Element name = document.createElement("name");
+			name.setTextContent(mdType);
+			types.appendChild(name);
+
+			for (final InventoryItem item : theMap.get(mdType)) {
+
+				Element member = document.createElement("members");
+				member.setTextContent(item.itemName);
+
+				if (this.includeChangeData) {
+					member.setAttribute("lastmodifiedby", item.getLastModifiedByName());
+					member.setAttribute("lastmodified", format1.format(item.getLastModifiedDate() == null ? 0 : item.getLastModifiedDate().getTime()));
+					member.setAttribute("lastmodifiedemail", item.lastModifiedByEmail);
+				}
+				types.appendChild(member);
+			}
+		}
+
+
+		Transformer tf = TransformerFactory.newInstance().newTransformer();
+		tf.setOutputProperty(OutputKeys.ENCODING, "UTF-8");
+		tf.setOutputProperty(OutputKeys.INDENT, "yes");
+		tf.setOutputProperty(OutputKeys.METHOD, "xml");
+		tf.setOutputProperty("{http://xml.apache.org/xslt}indent-amount", "4");
+		Writer out = new StringWriter();
+		tf.transform(new DOMSource(document), new StreamResult(out));
+
+		Utils.writeFile(this.targetDir + filename, out.toString());
+		this.logger.log(Level.INFO, "Writing " + new File(this.targetDir + filename).getCanonicalPath());
 	}
 }

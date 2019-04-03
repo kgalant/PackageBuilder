@@ -2,6 +2,7 @@ package com.kgal.packagebuilder.inventory;
 
 import java.util.Calendar;
 
+import com.sforce.soap.metadata.DescribeMetadataObject;
 import com.sforce.soap.metadata.FileProperties;
 
 public class InventoryItem {
@@ -15,17 +16,37 @@ public class InventoryItem {
 	public String lastModifiedByEmail;
 	public String lastModifiedByUsername;
 	public String localFileName;
+	public DescribeMetadataObject describe;
+	public String folderName;
 	
-	public InventoryItem(String i, FileProperties f, boolean isF) {
-		this.itemName = i;
-		this.fp = f;
+	public InventoryItem(String i, FileProperties f, boolean isF, DescribeMetadataObject d) {
+		initItem(i, f, d);
 		this.isFolder = isF;
 	}
 	
-	public InventoryItem(String i, FileProperties f) {
+	public InventoryItem(String i, FileProperties f, DescribeMetadataObject d) {
+		initItem(i, f, d);
+		this.isFolder = false;
+	}
+	
+	private void initItem(String i, FileProperties f, DescribeMetadataObject d) {
 		this.itemName = i;
 		this.fp = f;
+		if (fp != null) {
+			folderName = d.getDirectoryName();
+		} else {
+			folderName = "";
+		}
+		this.describe = d;
+	}
+	
+	// for StandardValueSets only
+	
+	public InventoryItem(String i, String folderName) {
+		this.itemName = i;
 		this.isFolder = false;
+		this.folderName = folderName;
+		this.describe = null;
 	}
 	
 	public String getExtendedName() {
@@ -46,7 +67,7 @@ public class InventoryItem {
 	}
 	
 	public String getFileName() {
-		return fp == null ? null : fp.getFileName();
+		return fp == null ? folderName + '/' + itemName : fp.getFileName();
 	}
 	
 	public String getFullName() {
