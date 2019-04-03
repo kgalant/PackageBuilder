@@ -24,6 +24,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.regex.PatternSyntaxException;
 
+import org.apache.commons.io.FileUtils;
 import org.apache.commons.lang3.ArrayUtils;
 
 import com.kgal.migrationtoolutils.Utils;
@@ -918,22 +919,6 @@ public class PackageBuilder {
 
 		final Collection<PackageAndFilePersister> allPersisters = new ArrayList<>();
 
-		// Write out a complete version of the package,xml for later
-		// mdapi:convert operations
-		// TODO: Do we actually need this?
-
-		if (gitCommit) {
-			final PackageAndFilePersister completePackageXML = new PackageAndFilePersister(this.myApiVersion,
-					this.targetDir,
-					this.metaSourceDownloadDir,
-					this.parameters.get(PackageBuilderCommandLine.DESTINATION_LONGNAME),
-					completeInventory,
-					"packageComplete.xml",
-					false, false, false, this.srcMetadataConnection);
-			allPersisters.add(completePackageXML);
-		}
-		// End of todo
-
 		// Add all XML Files to the download queue
 		files.forEach((curFileName, members) -> {
 			final PackageAndFilePersister pfp = new PackageAndFilePersister(this.myApiVersion,
@@ -945,11 +930,20 @@ public class PackageBuilder {
 					this.downloadData,
 					this.unzipDownload,
 					this.srcMetadataConnection);
-			if (this.simulateDataDownload) {
-				pfp.setLocalOnly();
-			}
+				if (this.simulateDataDownload) {
+					pfp.setLocalOnly();
+				}
 			allPersisters.add(pfp);
 		});
+		
+		// new feature here
+		// if doing git commit, clean out the target directory before starting
+		// but first check that someplace above it actually has the GIT stuff in it
+		
+		if (gitCommit) {
+			File targetDirectory = new File(this.parameters.get(PackageBuilderCommandLine.DESTINATION_LONGNAME) + File.separator + this.metaSourceDownloadDir);
+			FileUtils.deleteDirectory(targetDirectory);
+		}
 
 		WORKER_THREAD_POOL.invokeAll(allPersisters).stream().map(future -> {
 			String result = null;

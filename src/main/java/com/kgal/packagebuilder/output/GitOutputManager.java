@@ -26,6 +26,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.logging.Level;
@@ -49,16 +50,19 @@ import com.kgal.packagebuilder.inventory.InventoryItem;
  */
 public class GitOutputManager {
 
-	private final Map<String, String> parameters;
-	private final File                gitPath;
-	private final File                sourceDirPath;
+	private final Map<String, String> 	parameters;
+	private final File                	gitPath;
+	private final File                	sourceDirPath;
 	private final Logger 				logger;
+	private Status						status;
+	
+	private static String				sourceFolder = "src";
 
 	public GitOutputManager(final Map<String, String> parameters, Logger l) {
 		this.parameters = parameters;
 		//        this.gitPath = new File(this.getParam(PackageBuilderCommandLine.METADATATARGETDIR_LONGNAME, "src"));
-		this.gitPath = findGitRoot(this.getParam(PackageBuilderCommandLine.METADATATARGETDIR_LONGNAME, "src"));
-		this.sourceDirPath = new File(this.getParam(PackageBuilderCommandLine.METADATATARGETDIR_LONGNAME, "src"));
+		this.gitPath = findGitRoot(this.getParam(PackageBuilderCommandLine.METADATATARGETDIR_LONGNAME, sourceFolder));
+		this.sourceDirPath = new File(this.getParam(PackageBuilderCommandLine.METADATATARGETDIR_LONGNAME, sourceFolder));
 		logger = l;
 	}
 
@@ -66,7 +70,6 @@ public class GitOutputManager {
 			throws IOException, NoFilepatternException, GitAPIException {
 
 		final Git git = Git.open(gitPath.getAbsoluteFile());
-		//		HashMap<String, InventoryItem> inventoryLookup = this.flattenInventoryMap(actualInventory);
 
 		if (!this.sourceDirPath.isDirectory()) {
 			throw new IOException("MetaData source isn't a directory:" + sourceDirPath.getCanonicalPath());
@@ -78,7 +81,6 @@ public class GitOutputManager {
 
 		final Collection<String> filesOfInterest = this.getFilesToCommit(git);
 
-		//        itemsByContributor.entrySet().forEach(entry -> {
 		for (String entry : itemsByContributor.keySet()) {
 			final Collection<String> actualToBeCommitted = new ArrayList<>();
 			String user = entry;//entry.getKey();
@@ -100,7 +102,7 @@ public class GitOutputManager {
 
 			if (!actualToBeCommitted.isEmpty()) {
 				String commitMessage = "Changes by " + author.getName();
-				System.out.println("Committing " + commitMessage);
+				logger.log(Level.INFO, "Committing " + commitMessage);
 				try {
 					git.commit().setMessage(commitMessage).setAuthor(author).call();
 				} catch (GitAPIException e) {
@@ -108,7 +110,51 @@ public class GitOutputManager {
 				}
 			}
 		}
-		//        });
+		
+		// now do files that have been removed
+		// git.status = missing
+		
+		try {
+			
+			final Collection<String> actualToBeCommitted = new ArrayList<>();
+			
+			Set<String> deletes = new HashSet<>();
+
+			deletes.addAll(status.getMissing());
+			deletes.addAll(status.getRemoved());
+			
+			String baseDirectory = this.getParam(PackageBuilderCommandLine.METADATATARGETDIR_LONGNAME,"").replace(sourceFolder, "");
+			
+			for (final String filename : deletes) {
+				File file = new File(baseDirectory + filename);
+				String pattern = file.getCanonicalPath().replace(sourceDirPath.getCanonicalPath(), this.sourceDirPath.getName());
+				
+				try {
+					git.rm().addFilepattern(pattern).call();
+					actualToBeCommitted.add(pattern);
+				} catch (GitAPIException e) {
+					e.printStackTrace();
+				}
+			}
+			
+			if (!actualToBeCommitted.isEmpty()) {
+				
+				PersonIdent author = getIdentity("Not tracked|noreply@salesforce.com");
+				
+				String commitMessage = "Deletes from org. Origin not tracked in API.";
+				logger.log(Level.INFO, "Committing " + commitMessage);
+				try {
+					git.commit().setMessage(commitMessage).setAuthor(author).call();
+				} catch (GitAPIException e) {
+					e.printStackTrace();
+				}
+			}
+			
+			
+
+		} catch (NoWorkTreeException e) {
+			e.printStackTrace();
+		}
 
 	}
 
@@ -178,7 +224,7 @@ public class GitOutputManager {
 	private Collection<String> getFilesToCommit(Git git) {
 		final Collection<String> resultCandidate = new ArrayList<>();
 		try {
-			Status status = git.status().call();
+			status = git.status().call();
 
 			Set<String> conflicting = status.getConflicting();
 			Set<String> added = status.getAdded();
@@ -202,39 +248,39 @@ public class GitOutputManager {
 
 			// Remove this after stuff works as expected
 			for (String conflict : conflicting) {
-				logger.log(Level.FINE, "Conflicting: " + conflict);
+				logger.log(Level.FINER, "Conflicting: " + conflict);
 			}
 
 			for (String add : added) {
-				logger.log(Level.FINE, "Added: " + add);
+				logger.log(Level.FINER, "Added: " + add);
 			}
 
 			for (String change : changed) {
-				logger.log(Level.FINE, "Change: " + change);
+				logger.log(Level.FINER, "Change: " + change);
 			}
 
 			for (String miss : missing) {
-				logger.log(Level.FINE, "Missing: " + miss);
+				logger.log(Level.FINER, "Missing: " + miss);
 			}
 
 			for (String modify : modified) {
-				logger.log(Level.FINE, "Modification: " + modify);
+				logger.log(Level.FINER, "Modification: " + modify);
 			}
 
 			for (String remove : removed) {
-				logger.log(Level.FINE, "Removed: " + remove);
+				logger.log(Level.FINER, "Removed: " + remove);
 			}
 
 			for (String uncommitted : uncommittedChanges) {
-				logger.log(Level.FINE, "Uncommitted: " + uncommitted);
+				logger.log(Level.FINER, "Uncommitted: " + uncommitted);
 			}
 
 			for (String untrack : untracked) {
-				logger.log(Level.FINE, "Untracked: " + untrack);
+				logger.log(Level.FINER, "Untracked: " + untrack);
 			}
 
 			for (String untrack : untrackedFolders) {
-				logger.log(Level.FINE, "Untracked Folder: " + untrack);
+				logger.log(Level.FINER, "Untracked Folder: " + untrack);
 			}
 
 		} catch (NoWorkTreeException | GitAPIException e) {
