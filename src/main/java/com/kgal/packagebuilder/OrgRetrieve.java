@@ -86,7 +86,7 @@ public class OrgRetrieve {
 
 
 			File resultsFile = new File(zipFile);
-			this.logger.log(Level.INFO,"Writing results to zip file: " + resultsFile.getAbsolutePath());
+			this.logger.log(Level.INFO,"Writing results to zip file: " + resultsFile.getCanonicalPath());
 			FileOutputStream os = new FileOutputStream(resultsFile);
 
 			try {

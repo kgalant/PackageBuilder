@@ -143,7 +143,7 @@ public class PackageAndFilePersister implements Callable<PersistResult> {
 			}
 		}
 
-		if (itworked && this.unzipDownload) {
+		if (itworked && (this.downloadData || this.localOnly) && this.unzipDownload) {
 			try {
 				this.unzipPackage();
 			} catch (Exception e) {
@@ -153,15 +153,15 @@ public class PackageAndFilePersister implements Callable<PersistResult> {
 			}
 		}
 
-		if (itworked && this.gitCommit) {
-			try {
-				this.prepareForGit();
-			} catch (Exception e) {
-				this.result.setStatus(PersistResult.Status.FAILURE);
-				itworked = false;
-				e.printStackTrace();
-			}
-		}
+//		if (itworked && this.gitCommit) {
+//			try {
+//				this.prepareForGit();
+//			} catch (Exception e) {
+//				this.result.setStatus(PersistResult.Status.FAILURE);
+//				itworked = false;
+//				e.printStackTrace();
+//			}
+//		}
 
 
 		if (itworked) {
@@ -174,22 +174,30 @@ public class PackageAndFilePersister implements Callable<PersistResult> {
 		return this.result;
 	}
 
-	private void prepareForGit() throws IOException {
-		final Map<String, Calendar> fileDates = new HashMap<>();
-		this.theMap.entrySet().forEach((entry) -> {
-			try {
-				final String curKey = String.valueOf(Utils.getDirForMetadataType(entry.getKey()));
-				entry.getValue().forEach(item -> {
-					fileDates.put(curKey + "/" + item.itemName.toLowerCase(), item.getLastModifiedDate());
-				});
-			} catch (IOException e) {
-				e.printStackTrace();
-			}
-		});
-		final ZipAndFileFixer zff = new ZipAndFileFixer(zipResult, fileDates);
-		zff.extractAndAdjust(this.metaSourceDownloadDir);
-
-	}
+//	private void prepareForGit() throws IOException {
+//		final Map<String, Calendar> fileDates = new HashMap<>();
+//
+//		// prepare the map with last-modified-date for all the items
+//		
+//		this.theMap.entrySet().forEach((entry) -> {
+//			try {
+//				final String curKey = String.valueOf(Utils.getDirForMetadataType(entry.getKey()));
+//				entry.getValue().forEach(item -> {
+//					fileDates.put(curKey + "/" + item.itemName.toLowerCase(), item.getLastModifiedDate());
+//				});
+//			} catch (IOException e) {
+//				e.printStackTrace();
+//			}
+//		});
+//		
+//		// now walk the contents of the folder we're unzipping into and fix any of the dates 
+//		// need to get all the files for InventoryItems that translate to multiple files
+//		// so classes, etc. that have a -meta.xml, aura that have child directories, etc.
+//		
+//		final ZipAndFileFixer zff = new ZipAndFileFixer(zipResult, fileDates);
+//		zff.extractAndAdjust(this.metaSourceDownloadDir);
+//
+//	}
 
 	private void unzipPackage() throws Exception {
 		final String zipFileNameWithPath = this.destinationDir + File.separator + zipFileName;
@@ -206,7 +214,7 @@ public class PackageAndFilePersister implements Callable<PersistResult> {
 		zipFileName = this.filename.replace("xml", "zip");
 
 		this.logger.log(Level.INFO,
-				"Asked to retrieve this package " + this.filename + "from org - will do so now.");
+				"Asked to retrieve this package " + this.filename + " from org - will do so now.");
 		myRetrieve = new OrgRetrieve(Level.FINE);
 		myRetrieve.setMetadataConnection(this.metadataConnection);
 		Utils.checkDir(this.destinationDir);

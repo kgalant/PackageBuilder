@@ -66,7 +66,7 @@ public class PackageBuilder {
 	public static final int     CONCURRENT_THREADS     = 8;
 
 	// Logging
-	private final Logger logger = Logger.getLogger(Logger.GLOBAL_LOGGER_NAME);
+	private static final Logger logger = Logger.getLogger(Logger.GLOBAL_LOGGER_NAME);
 	private Level thisLogLevel;
 
 	private static final String[] STANDARDVALUETYPESARRAY = new String[] { "AccountContactMultiRoles",
@@ -148,13 +148,13 @@ public class PackageBuilder {
 		// set loglevel based on parameters
 		thisLogLevel = ("verbose".equals(this.parameters.get("loglevel"))) ? Level.FINER : Level.INFO;
 
-		this.logger.setLevel(thisLogLevel);
-		this.logger.setUseParentHandlers(false);
+		logger.setLevel(thisLogLevel);
+		logger.setUseParentHandlers(false);
 		final LogFormatter formatter = new LogFormatter();
 		final ConsoleHandler handler = new ConsoleHandler();
 		handler.setFormatter(formatter);
 		handler.setLevel(thisLogLevel);
-		this.logger.addHandler(handler);
+		logger.addHandler(handler);
 
 		// Check what to do based on parameters
 		this.includeChangeData = this.isParamTrue(PackageBuilderCommandLine.INCLUDECHANGEDATA_LONGNAME);
@@ -188,12 +188,69 @@ public class PackageBuilder {
 		final HashMap<String, HashMap<String, ArrayList<InventoryItem>>> actualInventory = this.generatePackageXML(inventory);
 
 		if (this.gitCommit) {
-			final GitOutputManager gom = new GitOutputManager(this.parameters);
-			gom.commitToGit(actualInventory);
+			
+			// if we are doing git commit, have to prepare an inventory map so we can properly set each file's last modified date, etc
+			
+			final HashMap<String, InventoryItem> totalInventory = generateTotalInventory(inventory);
+			
+			// now walk the contents of the folder we've unzipped into and fix any of the dates 
+			// need to get all the files for InventoryItems that translate to multiple files
+			// so classes, etc. that have a -meta.xml, aura that have child directories, etc.
+			
+			new ZipAndFileFixer(totalInventory, logger).adjustFileDates(this.metaSourceDownloadDir);
+			
+			final GitOutputManager gom = new GitOutputManager(this.parameters, logger);
+			gom.commitToGit(totalInventory);
 		}
 		this.endTiming(this.totalTimeStart, "Complete run");
 
 	}
+	
+	public static InventoryItem getInventoryItemForFile(Map<String, InventoryItem> totalInventory, File f, String targetDirName) throws IOException {
+
+		String key = f.getCanonicalPath();
+		String basePath = new File(targetDirName).getCanonicalPath();
+		key = key.replace(basePath, "");
+		if (key.startsWith("/")) {
+			key = key.substring(1);
+		}
+
+		// first check if there's a -meta.xml on the file name, and remove if there is
+
+		if (key.endsWith("-meta.xml")) {
+			key = key.replace("-meta.xml", "");
+		}
+
+		// now remove any suffix left on the file, if any?
+
+		int index = key.lastIndexOf(".");
+		if (index > 0) {
+			key = key.substring(0, index);
+		}
+
+		// check if this maps to a key in the inventory
+
+		InventoryItem item = totalInventory.get(key);
+
+		while (item == null && key.contains("/")) {
+			// let's try to cut the last piece of the path off and see if that gives us a usable key,
+			// i.e. go from lwc/MyComp/MyCompHelper to lwc/MyComp
+
+			key = key.substring(0,key.lastIndexOf("/"));
+			item = totalInventory.get(key);
+
+		} 
+
+		if (item == null) {
+			logger.log(Level.INFO, "Found no inventory match for file " + f.getCanonicalPath());
+		} else {
+			logger.log(Level.FINER, "Found an inventory match for file " + f.getCanonicalPath() + " with key " + key);
+		}
+
+		// TODO Auto-generated method stub
+		return item;
+	}
+	
 
 	private HashMap<String,HashMap<String, ArrayList<InventoryItem>>> createPackageFiles(final HashMap<String, ArrayList<InventoryItem>> myCompleteInventory) {
 
@@ -238,7 +295,7 @@ public class PackageBuilder {
 				// if not, warn that security items (Profiles/PermissionSets) may be incomplete, warn and 
 				// process everything else
 
-				this.logger.log(Level.INFO, "Asked to export permission settings (Profiles/PermSets). "
+				logger.log(Level.INFO, "Asked to export permission settings (Profiles/PermSets). "
 						+ "Will now try to bundle them and dependent items in one package.");
 
 				// create inventory with all the special treatment items
@@ -259,7 +316,7 @@ public class PackageBuilder {
 				// check if we got 1 file only, log if not
 
 				if (files.size() != 1) {
-					this.logger.log(Level.INFO,"Permission settings (Profiles/PermSets) with dependent items over " + maxItemsInRegularPackage + 
+					logger.log(Level.INFO,"Permission settings (Profiles/PermSets) with dependent items over " + maxItemsInRegularPackage + 
 							" items - won't fit in one package. Please note that contents of profiles/permission sets may be incomplete.");
 				}
 
@@ -317,7 +374,7 @@ public class PackageBuilder {
 				// no, we don't, finish file off, add to list, create new and
 				// add to that
 
-				this.logger.log(Level.FINE, "Type " + mdType + ", won't fit into this file - #items: " + mdTypeSize + ".");
+				logger.log(Level.FINE, "Type " + mdType + ", won't fit into this file - #items: " + mdTypeSize + ".");
 
 				//put part of this type into this file
 
@@ -325,13 +382,13 @@ public class PackageBuilder {
 				currentFile.put(mdType, mdTypeListPartial);
 				mdTypeList.removeAll(mdTypeListPartial);
 				fileCount += mdTypeListPartial.size();
-				this.logger.log(Level.FINE, 
+				logger.log(Level.FINE, 
 						"Adding type: " + mdType + "(" + mdTypeListPartial.size() + " items) to file " + fileIndex + ", total count now: "
 								+ fileCount);
 				if (!continuingPreviousFile) {
 					files.add(currentFile);
 				}
-				this.logger.log(Level.FINE, "Finished composing file " + fileIndex + ", total count: " + fileCount + " items.");
+				logger.log(Level.FINE, "Finished composing file " + fileIndex + ", total count: " + fileCount + " items.");
 				continuingPreviousFile = false;
 
 				// finish and start new file
@@ -355,11 +412,11 @@ public class PackageBuilder {
 				if (!continuingPreviousFile) {
 					files.add(currentFile);
 					continuingPreviousFile = false;
-					this.logger.log(Level.FINE, "Finished composing file " + fileIndex + ", total count: " + fileCount + " items.");
+					logger.log(Level.FINE, "Finished composing file " + fileIndex + ", total count: " + fileCount + " items.");
 				}
 				currentFile = new HashMap<>();
 				mdTypeList.removeAll(mdTypeListPartial);
-				this.logger.log(Level.FINE, 
+				logger.log(Level.FINE, 
 						"Adding type: " + mdType + "(" + mdTypeListPartial.size() + " items) to file " + fileIndex + ", total count now: "
 								+ fileCount);
 
@@ -370,7 +427,7 @@ public class PackageBuilder {
 
 			currentFile.put(mdType, mdTypeList);
 			fileCount += mdTypeList.size();
-			this.logger.log(Level.FINE, 
+			logger.log(Level.FINE, 
 					"Adding type: " + mdType + "(" + mdTypeList.size() + " items) to file " + fileIndex + ", total count now: "
 							+ fileCount);
 		}
@@ -379,7 +436,7 @@ public class PackageBuilder {
 		if (!continuingPreviousFile) {
 			files.add(currentFile);
 			continuingPreviousFile = false;
-			this.logger.log(Level.FINE, "Finished composing file " + fileIndex + ", total count: " + fileCount + " items.");
+			logger.log(Level.FINE, "Finished composing file " + fileIndex + ", total count: " + fileCount + " items.");
 		}
 
 
@@ -405,7 +462,7 @@ public class PackageBuilder {
 				TimeUnit.MILLISECONDS.toMinutes(diff) - TimeUnit.HOURS.toMinutes(TimeUnit.MILLISECONDS.toHours(diff)),
 				TimeUnit.MILLISECONDS.toSeconds(diff)
 				- TimeUnit.MINUTES.toSeconds(TimeUnit.MILLISECONDS.toMinutes(diff)));
-		this.logger.log(Level.FINE, message + " Duration: " + hms);
+		logger.log(Level.FINE, message + " Duration: " + hms);
 	}
 
 
@@ -472,7 +529,7 @@ public class PackageBuilder {
 				}
 
 				if (((srcMd != null) && (srcMd.length > 0))	|| metadataType.equals("StandardValueSet")) { 
-					// hack alert - currently listMetadata returns nothing for StandardValueSet
+					// hack alert - currently (API 45) listMetadata returns nothing for StandardValueSet
 					if (!metadataType.equals("StandardValueSet")) {
 						for (final FileProperties n : srcMd) {
 							if (
@@ -485,30 +542,30 @@ public class PackageBuilder {
 									((n.getNamespacePrefix() == null) || n.getNamespacePrefix().equals(""))
 									) {
 								// packageMap.add(n.getFullName());
-								InventoryItem i = new InventoryItem(n.getFullName(), n);
+								InventoryItem i = new InventoryItem(n.getFullName(), n, this.describeMetadataObjectsMap.get(metadataType));
 								packageInventoryList.put(n.getFullName(), i);
-								this.logger.log(Level.FINER, "Adding item " + i.getExtendedName() + " to inventory.");
+								logger.log(Level.FINER, "Adding item " + i.getExtendedName() + " to inventory.");
 							}
 							//
 						}
 					} else {
 						for (final String s : PackageBuilder.STANDARDVALUETYPESARRAY) {
-							InventoryItem i = new InventoryItem(s, null);
+							InventoryItem i = new InventoryItem(s, "standardValueSets");
 							packageInventoryList.put(s, i);
-							this.logger.log(Level.FINER, "Adding item " + i.getExtendedName() + " to inventory.");
+							logger.log(Level.FINER, "Adding item " + i.getExtendedName() + " to inventory.");
 						}
 					}
 
 				} else {
-					this.logger.log(Level.FINER, "No items of this type, skipping...");
+					logger.log(Level.FINER, "No items of this type, skipping...");
 				}
 
 			} while (queryIterator.hasNext());
 
 		} catch (final ConnectionException ce) {
 			// ce.printStackTrace();
-			this.logger.log(Level.INFO, "\nException processing: " + metadataType);
-			this.logger.log(Level.INFO, "Error: " + ce.getMessage());
+			logger.log(Level.INFO, "\nException processing: " + metadataType);
+			logger.log(Level.INFO, "Error: " + ce.getMessage());
 		}
 		this.endTiming(startTime, "");
 
@@ -521,7 +578,7 @@ public class PackageBuilder {
 
 	private ArrayList<FileProperties> generateFolderListToProcess(HashMap<String, InventoryItem> packageInventoryList, String metadataType)
 			throws ConnectionException {
-		this.logger.log(Level.FINE, metadataType + " is stored in folders. Getting folder list.");
+		logger.log(Level.FINE, metadataType + " is stored in folders. Getting folder list.");
 		final ArrayList<FileProperties> foldersToProcess = new ArrayList<>();
 		final ListMetadataQuery query = new ListMetadataQuery();
 		// stupid hack for emailtemplate folder name
@@ -541,16 +598,16 @@ public class PackageBuilder {
 
 				// add folder to final inventory
 				if (n.getManageableState().name().equals("installed")) {
-					this.logger.log(Level.FINER, "Skipping folder " + n.getFullName() + " because it is managed.");
+					logger.log(Level.FINER, "Skipping folder " + n.getFullName() + " because it is managed.");
 				} else {
 					foldersToProcess.add(n);
-					packageInventoryList.put(n.getFullName(), new InventoryItem(n.getFullName(), n, true));
-					this.logger.log(Level.FINER, "Adding folder " + n.getFullName() + " to inventory.");
+					packageInventoryList.put(n.getFullName(), new InventoryItem(n.getFullName(), n, true, this.describeMetadataObjectsMap.get(metadataType)));
+					logger.log(Level.FINER, "Adding folder " + n.getFullName() + " to inventory.");
 				}
 
 				itemCount++;
 			}
-			this.logger.log(Level.FINE, foldersToProcess.size() + " folders found. Adding to retrieve list.");
+			logger.log(Level.FINE, foldersToProcess.size() + " folders found. Adding to retrieve list.");
 		}
 		return foldersToProcess;
 	}
@@ -583,7 +640,7 @@ public class PackageBuilder {
 		if (!Utils.checkIsDirectory(basedir)) {
 			// log error and exit
 
-			this.logger.log(Level.INFO, "Base directory parameter provided: " + basedir
+			logger.log(Level.INFO, "Base directory parameter provided: " + basedir
 					+ " invalid or is not a directory, cannot continue.");
 			System.exit(1);
 		}
@@ -612,7 +669,7 @@ public class PackageBuilder {
 				final int separatorLocation = s.indexOf(File.separator);
 
 				if (separatorLocation == -1) {
-					this.logger.log(Level.INFO,"No folder in: " + s + ",skipping...");
+					logger.log(Level.INFO,"No folder in: " + s + ",skipping...");
 					continue;
 				}
 
@@ -639,7 +696,7 @@ public class PackageBuilder {
 				}
 
 				if (mdType == null) {
-					this.logger.log(Level.INFO,"Couldn't find type mapping for item : " + mdType + " : " + filename + ", original path: "
+					logger.log(Level.INFO,"Couldn't find type mapping for item : " + mdType + " : " + filename + ", original path: "
 							+ s + ",skipping...");
 					continue;
 				}
@@ -658,8 +715,8 @@ public class PackageBuilder {
 
 				if (filename.contains("/") && mdType.equals("AuraDefinitionBundle")) {
 					final String subFoldername = filename.substring(0, filename.indexOf("/"));
-					typeInventory.add(new InventoryItem(subFoldername, null));
-					this.logger.log(Level.FINE, "Added: " + mdType + " : " + subFoldername + ", to inventory, original path: " + s);
+					typeInventory.add(new InventoryItem(subFoldername, null, null));
+					logger.log(Level.FINE, "Added: " + mdType + " : " + subFoldername + ", to inventory, original path: " + s);
 					continue;
 				}
 
@@ -668,11 +725,11 @@ public class PackageBuilder {
 
 				if (filename.contains("/")) {
 					final String subFoldername = filename.substring(0, filename.indexOf("/"));
-					typeInventory.add(new InventoryItem(subFoldername, null));
+					typeInventory.add(new InventoryItem(subFoldername, null, null));
 				}
 
-				typeInventory.add(new InventoryItem(filename, null));
-				this.logger.log(Level.FINE,"Added: " + mdType + " : " + filename + ", to inventory, original path: " + s);
+				typeInventory.add(new InventoryItem(filename, null, null));
+				logger.log(Level.FINE,"Added: " + mdType + " : " + filename + ", to inventory, original path: " + s);
 
 				// convert myinventory to the right return type
 
@@ -717,8 +774,8 @@ public class PackageBuilder {
 		final ArrayList<String> workToDo = new ArrayList<>(this.getTypesToFetch());
 		Collections.sort(workToDo);
 
-		this.logger.log(Level.INFO, "Will fetch: " + String.join(", ", workToDo) + " from: " + this.srcUrl);
-		this.logger.log(Level.FINE, "Using user: " + this.srcUser + " skipping: " + this.skipItems);
+		logger.log(Level.INFO, "Will fetch: " + String.join(", ", workToDo) + " from: " + this.srcUrl);
+		logger.log(Level.FINE, "Using user: " + this.srcUser + " skipping: " + this.skipItems);
 
 		System.out.println("target directory: " + this.targetDir);
 
@@ -730,21 +787,21 @@ public class PackageBuilder {
 			counter++;
 			final String mdType = i.next();
 
-			if (this.logger.getLevel() == Level.FINE) {
-				this.logger.log(Level.FINE, "*********************************************");
+			if (logger.getLevel() == Level.FINE) {
+				logger.log(Level.FINE, "*********************************************");
 			}
-			this.logger.log(Level.INFO,	"Processing type " + counter + " out of " + workToDo.size() + ": " + mdType + (Level.INFO == thisLogLevel ? "\\" : ""));
+			logger.log(Level.INFO,	"Processing type " + counter + " out of " + workToDo.size() + ": " + mdType + (Level.INFO == thisLogLevel ? "\\" : ""));
 
 			final ArrayList<InventoryItem> mdTypeItemList = new ArrayList<>(this.fetchMetadataType(mdType).values());
 			Collections.sort(mdTypeItemList, (o1, o2) -> o1.itemName.compareTo(o2.itemName));
 			inventory.put(mdType, mdTypeItemList);
 
-			this.logger.log(Level.INFO, " items: " + mdTypeItemList.size());
+			logger.log(Level.INFO, " items: " + mdTypeItemList.size());
 
-			if (this.logger.getLevel() == Level.FINE) {
-				this.logger.log(Level.FINE, "Finished processing: " + mdType);
-				this.logger.log(Level.FINE, "*********************************************");
-				this.logger.log(Level.FINE, "");
+			if (logger.getLevel() == Level.FINE) {
+				logger.log(Level.FINE, "Finished processing: " + mdType);
+				logger.log(Level.FINE, "*********************************************");
+				logger.log(Level.FINE, "");
 			}
 
 		}
@@ -804,7 +861,7 @@ public class PackageBuilder {
 
 			if (this.parameters.containsKey(PackageBuilderCommandLine.STRIPUSERPERMISSIONS_LONGNAME) &&
 					myFile.containsKey("Profile")) {
-				this.logger.log(Level.INFO, "Asked to strip user permissions from Profiles - will do so now.");
+				logger.log(Level.INFO, "Asked to strip user permissions from Profiles - will do so now.");
 				ProfileCompare pc = new ProfileCompare(thisLogLevel);
 				pc.stripUserPermissionsFromProfiles(this.parameters.get(PackageBuilderCommandLine.METADATATARGETDIR_LONGNAME));
 
@@ -814,14 +871,43 @@ public class PackageBuilder {
 		final ArrayList<String> typesFound = new ArrayList<>(this.existingTypes);
 		Collections.sort(typesFound);
 
-		this.logger.log(Level.INFO, "Types found in org: " + typesFound.toString());
+		logger.log(Level.INFO, "Types found in org: " + typesFound.toString());
 
-		this.logger.log(Level.INFO, "Total items in package.xml: " + (itemCount - skipCount));
-		this.logger.log(Level.FINE, "Total items overall: " + itemCount + ", items skipped: " + skipCount
+		logger.log(Level.INFO, "Total items in package.xml: " + (itemCount - skipCount));
+		logger.log(Level.FINE, "Total items overall: " + itemCount + ", items skipped: " + skipCount
 				+ " (excludes count of items in type where entire type was skipped)");
 
 		return files;
 
+	}
+	
+	/*
+	 * this method will take the total inventory by type HashMap<String, ArrayList<InventoryItem>>
+	 * and generate a single map keyed by a unique key which is the filename 
+	 * 
+	 */
+	
+	private HashMap<String, InventoryItem> generateTotalInventory(HashMap<String, ArrayList<InventoryItem>> inventory) {
+		HashMap<String, InventoryItem> totalInventory = new HashMap<>();
+		
+		for (String metadataType : inventory.keySet()) {
+			for (InventoryItem item : inventory.get(metadataType)) {
+				String key = item.getFileName();
+				
+				// strip suffix from file name
+				
+				int idx = key.lastIndexOf(".");
+				
+				if (idx > 0) {
+					key = key.substring(0, idx);
+				}
+				
+				totalInventory.put(key, item);
+				logger.log(Level.FINE, "Added: " + key + " to git inventory");
+			}
+		}
+		
+		return totalInventory;
 	}
 
 	private void writeAndDownloadPackages(HashMap<String,HashMap<String,ArrayList<InventoryItem>>> files, 
@@ -875,7 +961,7 @@ public class PackageBuilder {
 						String.valueOf(pr.getStatus());
 
 			} catch (Exception e) {
-				this.logger.log(Level.SEVERE, e.getMessage());
+				logger.log(Level.SEVERE, e.getMessage());
 				result = e.getMessage();
 			}
 			return result;
@@ -883,7 +969,7 @@ public class PackageBuilder {
 		}).forEach(System.out::println);
 
 		if (!WORKER_THREAD_POOL.awaitTermination(1, TimeUnit.SECONDS)) {
-			//			this.logger.log(Level.SEVERE, "Threads not terminated within 15 sec");
+			//			logger.log(Level.SEVERE, "Threads not terminated within 15 sec");
 			WORKER_THREAD_POOL.shutdownNow();
 		}
 
@@ -916,7 +1002,7 @@ public class PackageBuilder {
 			}
 		} else {
 			// no directions on what to fetch - go get everything
-			this.logger.log(Level.INFO, "No metadataitems (-mi) parameter found, will inventory the whole org");
+			logger.log(Level.INFO, "No metadataitems (-mi) parameter found, will inventory the whole org");
 
 			for (final String obj : this.describeMetadataObjectsMap.keySet()) {
 				typesToFetch.add(obj.trim());
@@ -973,7 +1059,7 @@ public class PackageBuilder {
 				fromDate = Date.valueOf(fromDateString);
 			} 
 			catch (IllegalArgumentException e) {
-				this.logger.log(Level.FINE, "FromDate value: " + fromDateString + " cannot be parsed to a proper date. Required format: YYYY-[M]M-[D]D. Continuing without FromDate parameter.");
+				logger.log(Level.FINE, "FromDate value: " + fromDateString + " cannot be parsed to a proper date. Required format: YYYY-[M]M-[D]D. Continuing without FromDate parameter.");
 			}
 		}
 
@@ -982,7 +1068,7 @@ public class PackageBuilder {
 				toDate = Date.valueOf(toDateString);
 			} 
 			catch (IllegalArgumentException e) {
-				this.logger.log(Level.FINE, "ToDate value: " + toDateString + " cannot be parsed to a proper date. Required format: YYYY-[M]M-[D]D. Continuing without ToDate parameter.");
+				logger.log(Level.FINE, "ToDate value: " + toDateString + " cannot be parsed to a proper date. Required format: YYYY-[M]M-[D]D. Continuing without ToDate parameter.");
 			}
 		}
 
@@ -995,7 +1081,7 @@ public class PackageBuilder {
 				for (Pattern p :  this.skipPatterns) {
 					final Matcher m = p.matcher(mdItem.getExtendedName());
 					if (m.matches()) {
-						this.logger.log(Level.FINE, "Skip pattern: " + p.pattern() + " matches the metadata item: " + mdItem.getExtendedName() + ", item will be skipped.");
+						logger.log(Level.FINE, "Skip pattern: " + p.pattern() + " matches the metadata item: " + mdItem.getExtendedName() + ", item will be skipped.");
 						skipCount++;
 						itemSkipped = true; 
 						break;
@@ -1010,7 +1096,7 @@ public class PackageBuilder {
 						}
 					}
 					if (!matchesPattern) {
-						this.logger.log(Level.FINE, "Metadata item: " + mdItem.getExtendedName() + " does not match any item name include patterns, item will be skipped.");
+						logger.log(Level.FINE, "Metadata item: " + mdItem.getExtendedName() + " does not match any item name include patterns, item will be skipped.");
 						skipCount++;
 						itemSkipped = true;
 					}
@@ -1019,7 +1105,7 @@ public class PackageBuilder {
 					for (Pattern p :  this.skipUsername) {
 						final Matcher m = p.matcher(mdItem.getLastModifiedByName());
 						if (m.matches()) {
-							this.logger.log(Level.FINE, "Skip pattern: " + p.pattern() + " matches the metadata item: " + mdItem.getExtendedName() + 
+							logger.log(Level.FINE, "Skip pattern: " + p.pattern() + " matches the metadata item: " + mdItem.getExtendedName() + 
 									" (" + mdItem.getLastModifiedByName() + "), item will be skipped.");
 							skipCount++;
 							itemSkipped = true; 
@@ -1036,7 +1122,7 @@ public class PackageBuilder {
 						}
 					}
 					if (!matchesPattern) {
-						this.logger.log(Level.FINE, "Metadata item: " + mdItem.getExtendedName() + " (" + mdItem.getLastModifiedByName() + 
+						logger.log(Level.FINE, "Metadata item: " + mdItem.getExtendedName() + " (" + mdItem.getLastModifiedByName() + 
 								") does not match any user name include patterns, item will be skipped.");
 						skipCount++;
 						itemSkipped = true;
@@ -1046,7 +1132,7 @@ public class PackageBuilder {
 					for (Pattern p :  this.skipEmail) {
 						final Matcher m = p.matcher(mdItem.lastModifiedByEmail);
 						if (m.matches()) {
-							this.logger.log(Level.FINE, "Skip pattern: " + p.pattern() + " matches the metadata item: " + mdItem.getExtendedName() + 
+							logger.log(Level.FINE, "Skip pattern: " + p.pattern() + " matches the metadata item: " + mdItem.getExtendedName() + 
 									" (" + mdItem.lastModifiedByEmail + "), item will be skipped.");
 							skipCount++;
 							itemSkipped = true; 
@@ -1063,7 +1149,7 @@ public class PackageBuilder {
 						}
 					}
 					if (!matchesPattern) {
-						this.logger.log(Level.FINE, "Metadata item: " + mdItem.getExtendedName() + " (" + mdItem.lastModifiedByEmail + 
+						logger.log(Level.FINE, "Metadata item: " + mdItem.getExtendedName() + " (" + mdItem.lastModifiedByEmail + 
 								") does not match any email include patterns, item will be skipped.");
 						skipCount++;
 						itemSkipped = true;
@@ -1077,7 +1163,7 @@ public class PackageBuilder {
 						if (itemLastModified == null || fromDate.after(itemLastModified.getTime())) {
 							skipCount++;
 							itemSkipped = true; 
-							this.logger.log(Level.FINE, "Item: " + mdItem.getExtendedName() + " last modified (" + (itemLastModified == null || itemLastModified.getTimeInMillis() == 0 ? "null" : format1.format(itemLastModified.getTime())) + ") before provided FromDate (" 
+							logger.log(Level.FINE, "Item: " + mdItem.getExtendedName() + " last modified (" + (itemLastModified == null || itemLastModified.getTimeInMillis() == 0 ? "null" : format1.format(itemLastModified.getTime())) + ") before provided FromDate (" 
 									+ fromDateString + "), item will be skipped.");
 						}
 					}
@@ -1088,7 +1174,7 @@ public class PackageBuilder {
 						if (itemLastModified == null || toDate.before(itemLastModified.getTime())) {
 							skipCount++;
 							itemSkipped = true; 
-							this.logger.log(Level.FINE, "Item: " + mdItem.getExtendedName() + " last modified (" + (itemLastModified == null || itemLastModified.getTimeInMillis() == 0 ? "null" : format1.format(itemLastModified.getTime())) + ") after provided ToDate (" 
+							logger.log(Level.FINE, "Item: " + mdItem.getExtendedName() + " last modified (" + (itemLastModified == null || itemLastModified.getTimeInMillis() == 0 ? "null" : format1.format(itemLastModified.getTime())) + ") after provided ToDate (" 
 									+ toDateString + "), item will be skipped.");
 						}
 					}
@@ -1194,8 +1280,8 @@ public class PackageBuilder {
 
 		final String query = queryStart + queryMid + queryEnd;
 
-		this.logger.log(Level.INFO, "Looking for emails for " + userIDs.size() + " users.");
-		this.logger.log(Level.FINE, "Query: " + query);
+		logger.log(Level.INFO, "Looking for emails for " + userIDs.size() + " users.");
+		logger.log(Level.FINE, "Query: " + query);
 
 		// run the query
 
@@ -1203,7 +1289,7 @@ public class PackageBuilder {
 
 		boolean done = false;
 		if (qResult.getSize() > 0) {
-			this.logger.log(Level.FINE, "Logged-in user can see a total of " + qResult.getSize() + " contact records.");
+			logger.log(Level.FINE, "Logged-in user can see a total of " + qResult.getSize() + " contact records.");
 			while (!done) {
 				final SObject[] records = qResult.getRecords();
 				for (final SObject o : records) {
