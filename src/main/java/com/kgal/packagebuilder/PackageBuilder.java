@@ -147,7 +147,13 @@ public class PackageBuilder {
 	public void run() throws RemoteException, Exception {
 
 		// set loglevel based on parameters
-		thisLogLevel = ("verbose".equals(this.parameters.get("loglevel"))) ? Level.FINER : Level.INFO;
+		String paramLogLevel = this.parameters.get("loglevel");
+		thisLogLevel = Level.INFO;
+		if ("FINE".equals(paramLogLevel)) {
+			thisLogLevel = Level.FINE;
+		} else if ("FINER".equals(paramLogLevel)) {
+			thisLogLevel = Level.FINER;
+		}
 
 		logger.setLevel(thisLogLevel);
 		logger.setUseParentHandlers(false);

@@ -53,7 +53,7 @@ public class PackageBuilderCommandLineTest {
         assertTrue(result.containsKey(PackageBuilderCommandLine.INCLUDECHANGEDATA_LONGNAME));
         assertTrue(result.containsKey(PackageBuilderCommandLine.APIVERSION_LONGNAME));
         assertTrue(result.containsKey(PackageBuilderCommandLine.USERNAME_LONGNAME));
-        assertTrue(result.containsKey(PackageBuilderCommandLine.VERBOSE_LONGNAME));
+        assertTrue(result.containsKey(PackageBuilderCommandLine.LOGLEVEL_LONGNAME));
         assertTrue(result.containsKey(PackageBuilderCommandLine.FROMDATE_LONGNAME));
         assertTrue(result.containsKey(PackageBuilderCommandLine.TODATE_LONGNAME));
         assertTrue(result.containsKey(PackageBuilderCommandLine.DOWNLOAD_LONGNAME));

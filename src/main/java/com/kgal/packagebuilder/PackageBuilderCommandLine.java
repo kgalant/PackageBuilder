@@ -80,8 +80,8 @@ public class PackageBuilderCommandLine {
 	public static final String BASEDIRECTORY_LONGNAME = "basedirectory";
 	public static final String METADATATARGETDIR = "mt";
 	public static final String METADATATARGETDIR_LONGNAME = "metadatatargetdir";
-	public static final String VERBOSE = "v";
-	public static final String VERBOSE_LONGNAME = "verbose";
+	public static final String LOGLEVEL = "ll";
+	public static final String LOGLEVEL_LONGNAME = "loglevel";
 	public static final String INCLUDECHANGEDATA = "c";
 	public static final String INCLUDECHANGEDATA_LONGNAME = "includechangedata";
 	public static final String DOWNLOAD = "do";
@@ -238,10 +238,11 @@ public class PackageBuilderCommandLine {
 		////////////////////////////////////////////////////////////////////////
 
 
-		// if verbose parameter is provided, set loglevel to verbose, else it will default to normal
-		if (isOptionSet(VERBOSE_LONGNAME)) {
-			this.parameters.put("loglevel", VERBOSE_LONGNAME);
-		}        
+//		skipping this, going to setting LOGLEVEL directly from command/property
+// 		if LOGLEVEL parameter is provided, set loglevel to LOGLEVEL, else it will default to normal
+//		if (isOptionSet(LOGLEVEL_LONGNAME)) {
+//			this.parameters.put("loglevel", LOGLEVEL_LONGNAME);
+//		}        
 
 		// add default to current directory if no target directory given
 		if (!this.isParameterProvided(DESTINATION_LONGNAME)) {
