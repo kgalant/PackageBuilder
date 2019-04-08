@@ -25,7 +25,11 @@ import java.io.FileReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.rmi.RemoteException;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 
@@ -100,6 +104,8 @@ public class PackageBuilderCommandLine {
 	public static final String LOCALONLY_LONGNAME = "localonly";
 	public static final String UNZIP = "u";
 	public static final String UNZIP_LONGNAME = "unzip";
+	
+	Map<String, Map<String, String>> paramDefinitions = new HashMap<>();
 
 	/**
 	 * @param args
@@ -156,80 +162,21 @@ public class PackageBuilderCommandLine {
 		// first, add any parameters from any property files provided on command line
 
 		if (line != null) {
-			// first initialize parameters from any parameter files provided
+			// first initialize any parameter files provided
 
-			if (line.hasOption(ORGFILE) && (line.getOptionValue(ORGFILE) != null) && (line.getOptionValue(ORGFILE).length() > 0)) {
-				final String paramFilesParameter = line.getOptionValue(ORGFILE);
-				for (final String paramFileName : paramFilesParameter.split(",")) {
-					final Properties props = Utils.initProps(paramFileName.trim());
-					System.out.println("Loading parameters from file: " + paramFileName);
-					this.addParameterFromProperty(props, "sf.apiversion");
-					this.addParameterFromProperty(props, METADATAITEMS_LONGNAME);
-					this.addParameterFromProperty(props, "sf.serverurl");
-					this.addParameterFromProperty(props, "sf.username");
-					this.addParameterFromProperty(props, "sf.password");
-					this.addParameterFromProperty(props, SKIPPATTERNS_LONGNAME);
-					this.addParameterFromProperty(props, INCLUDEPATTERNS_LONGNAME);
-					this.addParameterFromProperty(props, SKIPEMAIL_LONGNAME);
-					this.addParameterFromProperty(props, INCLUDEEMAIL_LONGNAME);
-					this.addParameterFromProperty(props, SKIPUSERNAME_LONGNAME);
-					this.addParameterFromProperty(props, INCLUDEUSERNAME_LONGNAME);
-					this.addParameterFromProperty(props, BASEDIRECTORY_LONGNAME);
-					this.addParameterFromProperty(props, METADATATARGETDIR_LONGNAME);
-					this.addParameterFromProperty(props, INCLUDECHANGEDATA_LONGNAME);
-					this.addParameterFromProperty(props, MAXITEMS_LONGNAME);
-					this.addParameterFromProperty(props, FROMDATE_LONGNAME);
-					this.addParameterFromProperty(props, TODATE_LONGNAME);
+			List<Properties> propFileList = getPropsFromFiles(line.getOptionValue(ORGFILE));
 
-					// adding handling for building a package from a directory
-					this.addParameterFromProperty(props, DESTINATION_LONGNAME);
-
-					// additional parameters to be available from property file
-					this.addBooleanParameterFromProperty(props, VERBOSE_LONGNAME);
-					this.addBooleanParameterFromProperty(props, DOWNLOAD_LONGNAME);
-					this.addBooleanParameterFromProperty(props, GITCOMMIT_LONGNAME);
-					this.addParameterFromProperty(props, LOCALONLY_LONGNAME);
-					this.addParameterFromProperty(props, UNZIP_LONGNAME);
-
-					// add handling for stripping userPermissions from Profiles
-					this.addBooleanParameterFromProperty(props, STRIPUSERPERMISSIONS_LONGNAME);
-				}
+			// now populate parameter array with parameters
+			
+			for (Map<String, String> paramDefinition : paramDefinitions.values()) {
+				readParameter(propFileList, 
+								line, 
+								paramDefinition.get("propFileParamName"), 
+								paramDefinition.get("shortParamName"), 
+								paramDefinition.get("longParamName"));
 			}
-		}
+		}	
 
-		// now add any parameters from command line
-		// will supersede anything provided in property files
-
-		this.addCmdlineParameter(line, APIVERSION, APIVERSION_LONGNAME);
-		this.addCmdlineParameter(line, USERNAME, USERNAME_LONGNAME);
-		this.addCmdlineParameter(line, SERVERURL, SERVERURL_LONGNAME);
-		this.addCmdlineParameter(line, PASSWORD, PASSWORD_LONGNAME);
-		this.addCmdlineParameter(line, METADATAITEMS, METADATAITEMS_LONGNAME);
-		this.addCmdlineParameter(line, SKIPPATTERNS, SKIPPATTERNS_LONGNAME);
-		this.addCmdlineParameter(line, INCLUDEPATTERNS, INCLUDEPATTERNS_LONGNAME);
-		this.addCmdlineParameter(line, SKIPEMAIL, SKIPEMAIL_LONGNAME);
-		this.addCmdlineParameter(line, INCLUDEEMAIL, INCLUDEEMAIL_LONGNAME);
-		this.addCmdlineParameter(line, SKIPUSERNAME, SKIPUSERNAME_LONGNAME);
-		this.addCmdlineParameter(line, INCLUDEUSERNAME, INCLUDEUSERNAME_LONGNAME);
-		this.addCmdlineParameter(line, DESTINATION, DESTINATION_LONGNAME);
-		this.addCmdlineParameter(line, METADATATARGETDIR, METADATATARGETDIR_LONGNAME);
-		this.addCmdlineParameter(line, MAXITEMS, MAXITEMS_LONGNAME);
-		this.addCmdlineParameter(line, FROMDATE, FROMDATE_LONGNAME);
-		this.addCmdlineParameter(line, TODATE, TODATE_LONGNAME);
-		this.addCmdlineParameter(line, VERBOSE, VERBOSE_LONGNAME);
-
-		// add include change telemetry data and download
-		this.addBooleanParameter(line, INCLUDECHANGEDATA, INCLUDECHANGEDATA_LONGNAME);
-		this.addBooleanParameter(line, DOWNLOAD, DOWNLOAD_LONGNAME);
-		this.addBooleanParameter(line, GITCOMMIT, GITCOMMIT_LONGNAME);
-		this.addBooleanParameter(line, LOCALONLY, LOCALONLY_LONGNAME);
-		this.addBooleanParameter(line, UNZIP, UNZIP_LONGNAME);
-
-		// adding handling for building a package from a directory
-		this.addCmdlineParameter(line, BASEDIRECTORY, BASEDIRECTORY_LONGNAME);
-
-		// add handling for stripping userPermissions from Profiles
-		this.addBooleanParameter(line, STRIPUSERPERMISSIONS, STRIPUSERPERMISSIONS_LONGNAME);
 
 		////////////////////////////////////////////////////////////////////////
 		//
@@ -291,8 +238,11 @@ public class PackageBuilderCommandLine {
 						+ " either basedir and destination or serverurl, username and password required as minimum");
 			}
 		}
+		
+		List<String> parameters = new ArrayList<String>(this.parameters.keySet());
+		Collections.sort(parameters);
 
-		for (final String key : this.parameters.keySet()) {
+		for (final String key : parameters) {
 			if (key.equals("password")) {
 				System.out.println(key + ":" + this.parameters.get(key).replaceAll(".", "*"));
 			} else {
@@ -306,16 +256,39 @@ public class PackageBuilderCommandLine {
 		return canProceed;
 	}
 
+	private void readParameter(List<Properties> propFileList, CommandLine line, String propFileParamName, String shortParamName, String longParamName) {
+		// first, add any parameters from files
+		for (Properties propFile : propFileList) {
+			addParameterFromProperty(propFile, propFileParamName);
+		}
+		// now add it from commandline if present
+		addCmdlineParameter(line, shortParamName, longParamName);
+
+
+
+	}
+
+	private List<Properties> getPropsFromFiles(String propFilesParameter) {
+		List<Properties> retval = new ArrayList<Properties>(); 
+		for (final String paramFileName : propFilesParameter.split(",")) {
+			retval.add(Utils.initProps(paramFileName.trim()));
+		}			
+		return retval;
+	}
+
 	/**
 	 * Extract parameters if provided
 	 *
 	 * @param cmdLineName
 	 * @param tagName
 	 */
-	private void addCmdlineParameter(final CommandLine line, final String cmdLineName, final String tagName) {
-		if (line.hasOption(cmdLineName) && (line.getOptionValue(cmdLineName) != null)
-				&& (line.getOptionValue(cmdLineName).length() > 0)) {
-			this.parameters.put(tagName, line.getOptionValue(cmdLineName));
+	private void addCmdlineParameter(final CommandLine line, final String cmdLineName, final String cmdLineLongName) {
+		if (line.hasOption(cmdLineName)) {
+			if (line.getOptionValue(cmdLineName) != null && (line.getOptionValue(cmdLineName).length() > 0)) {
+				this.parameters.put(cmdLineLongName, line.getOptionValue(cmdLineName));
+			} else {
+				this.parameters.put(cmdLineLongName, "true");
+			}
 		}
 	}
 
@@ -324,23 +297,6 @@ public class PackageBuilderCommandLine {
 		final String paramName = (propName.startsWith("sf.")) ? propName.substring(3) : propName;
 		if (props.getProperty(propName) != null) {
 			this.parameters.put(paramName, props.getProperty(propName));
-		}
-	}
-
-	private boolean addBooleanParameter(final CommandLine line, final String optionName, final String paramName) {
-		boolean result = false;
-		if (line.hasOption(optionName)) {
-			this.parameters.put(paramName, "true");
-			result = true;
-		}
-		return result;
-	}
-
-	private void addBooleanParameterFromProperty(final Properties props, final String propName) {
-		// Some properties start with "sf.", but we only use the name behind
-		final String paramName = (propName.startsWith("sf.")) ? propName.substring(3) : propName;
-		if (props.getProperty(propName) != null) {
-			this.parameters.put(paramName, "true");
 		}
 	}
 
@@ -365,151 +321,74 @@ public class PackageBuilderCommandLine {
 				"java -jar PackageBuilder.jar [-b basedirectory] [-o <parameter file1>,<parameter file2>] [-u <SF username>] [-p <SF password>]",
 				this.options);
 	}
+	
+	// add any new parameters here only
 
 	private void setupOptions() {
-		this.options.addOption(Option.builder(ORGFILE).longOpt(ORGFILE_LONGNAME)
-				.desc("file containing org parameters (see below)")
-				.hasArg()
-				.build());
-		this.options.addOption(Option.builder(USERNAME).longOpt(USERNAME_LONGNAME)
-				.desc("username for the org (someuser@someorg.com)")
-				.hasArg()
-				.build());
-		this.options.addOption(Option.builder(PASSWORD).longOpt(PASSWORD_LONGNAME)
-				.desc("password for the org (t0pSecr3t)")
-				.hasArg()
-				.build());
-		this.options.addOption(Option.builder(SERVERURL).longOpt(SERVERURL_LONGNAME)
-				.desc("server URL for the org (https://login.salesforce.com)")
-				.hasArg()
-				.build());
-		this.options.addOption(Option.builder(APIVERSION).longOpt(APIVERSION_LONGNAME)
-				.desc("api version to use, will default to " + PackageBuilder.API_VERSION)
-				.hasArg()
-				.build());
-		this.options.addOption(Option.builder(METADATAITEMS).longOpt(METADATAITEMS_LONGNAME)
-				.desc("metadata items to fetch")
-				.hasArg()
-				.build());
-		this.options.addOption(Option.builder(SKIPPATTERNS).longOpt(SKIPPATTERNS_LONGNAME)
-				.desc("patterns to skip when fetching. Will override include flags (pattern, username, email). Comma-separated java-style regexps.")
-				.hasArg()
-				.build());
-
-		// handling of the various skip patterns
-
-		this.options.addOption(Option.builder(INCLUDEPATTERNS).longOpt(INCLUDEPATTERNS_LONGNAME)
-				.desc("patterns to include when fetching. Will be overridden by any exclude flags (pattern, username, email). Comma-separated java-style regexps.")
-				.hasArg()
-				.build());
-
-		this.options.addOption(Option.builder(SKIPUSERNAME).longOpt(SKIPUSERNAME_LONGNAME)
-				.desc("user name(s) to skip when fetching. Will override include flags (pattern, username, email). Comma-separated java-style regexps.")
-				.hasArg()
-				.build());       
-		this.options.addOption(Option.builder(INCLUDEUSERNAME).longOpt(INCLUDEUSERNAME_LONGNAME)
-				.desc("user name(s) to include when fetching. Will be overridden by any exclude flags (pattern, username, email). Comma-separated java-style regexps.")
-				.hasArg()
-				.build());
-
-		this.options.addOption(Option.builder(SKIPEMAIL).longOpt(SKIPEMAIL_LONGNAME)
-				.desc("email(s) to skip when fetching. Will override include flags (pattern, username, email). Comma-separated java-style regexps.")
-				.hasArg()
-				.build());       
-		this.options.addOption(Option.builder(INCLUDEEMAIL).longOpt(INCLUDEEMAIL_LONGNAME)
-				.desc("email(s) to include when fetching. Will be overridden by any exclude flags (pattern, username, email). Comma-separated java-style regexps.")
-				.hasArg()
-				.build());
-
-
-		this.options.addOption(Option.builder(DESTINATION).longOpt(DESTINATION_LONGNAME)
-				.desc("directory where the generated package.xml will be written")
-				.hasArg()
-				.build());
-
-		// handling for filtering based on date
-
-		this.options.addOption(Option.builder(FROMDATE).longOpt(FROMDATE_LONGNAME)
-				.desc("only items last modified on or after this date (YYYY-MM-DD) will be included (in connecting user's local time zone)")
-				.hasArg()
-				.build());
-
-		this.options.addOption(Option.builder(TODATE).longOpt(TODATE_LONGNAME)
-				.desc("only items last modified on or before this date (YYYY-MM-DD) will be included (in connecting user's local time zone)")
-				.hasArg()
-				.build());
-
-		// handling for building a package from a directory
-
-		this.options.addOption(Option.builder(BASEDIRECTORY).longOpt(BASEDIRECTORY_LONGNAME)
-				.desc("base directory from which to generate package.xml")
-				.hasArg()
-				.build());
-
-		// When downloading source, where does it go:
-		this.options.addOption(Option.builder(METADATATARGETDIR).longOpt(METADATATARGETDIR_LONGNAME)
-				.desc("Directory to download meta data source to")
-				.hasArg()
-				.build());
-
-		// adding handling for brief output parameter
-
-		this.options.addOption(Option.builder(VERBOSE).longOpt(VERBOSE_LONGNAME)
-				.desc("output verbose logging instead of just core output")
-				.build());
-
-		// adding handling for change telemetry parameter
-
-		this.options.addOption(Option.builder(INCLUDECHANGEDATA).longOpt(INCLUDECHANGEDATA_LONGNAME)
-				.desc("include lastmodifiedby and date fields in every metadataitem output")
-				.build());
-
-		// handling of direct download and git options
-		this.options.addOption(Option.builder(DOWNLOAD).longOpt(DOWNLOAD_LONGNAME)
-				.desc("directly download assets, removing the need for ANT or MDAPI call")
-				.build());
-
-		this.options.addOption(Option.builder(GITCOMMIT).longOpt(GITCOMMIT_LONGNAME)
-				.desc("commits the changes to git. Requires -d -c options")
-				.build());
-
-		// handling of max items per package
-		this.options.addOption(Option.builder(MAXITEMS).longOpt(MAXITEMS_LONGNAME)
-				.desc("max number of items to put in a single package xml (defaults to 10000 if not provided)")
-				.hasArg()
-				.build());
-
-		// add handling for stripping userPermissions from Profiles
-		this.options.addOption(Option.builder(STRIPUSERPERMISSIONS).longOpt(STRIPUSERPERMISSIONS_LONGNAME)
-				.desc("strip userPermissions tags from profile files (only applies if the -do switch is also used)")
-				.build());
-
-		// Deal with local packages only
-		this.options.addOption(Option.builder(LOCALONLY).longOpt(LOCALONLY_LONGNAME)
-				.desc("Don't re-download package.zip files, but process existing ones")
-				.build());
 		
-		// Deal with local packages only
-				this.options.addOption(Option.builder(UNZIP).longOpt(UNZIP_LONGNAME)
-						.desc("unzip any retrieved package(s)")
-						.build());
+		setupParameter(ORGFILE_LONGNAME, 		ORGFILE, 		ORGFILE_LONGNAME, 		"file containing org parameters (see below)", true);
+		setupParameter("sf.apiversion", 		APIVERSION, 	APIVERSION_LONGNAME, 	"api version to use, will default to " + PackageBuilder.API_VERSION, true);
+		setupParameter("sf.serverurl", 			SERVERURL, 		SERVERURL_LONGNAME, 	"server URL for the org (https://login.salesforce.com)", true);
+		setupParameter("sf.password", 			PASSWORD, 		PASSWORD_LONGNAME,		"password for the org (t0pSecr3t)",true);
+		setupParameter("sf.username", 			USERNAME, 		USERNAME_LONGNAME,		"username for the org (someuser@someorg.com)", true);
+		setupParameter(METADATAITEMS_LONGNAME, 	METADATAITEMS, 	METADATAITEMS_LONGNAME, "metadata items to fetch (comma-separated, no spaces)", true);
+		setupParameter(SKIPPATTERNS_LONGNAME, 	SKIPPATTERNS,  	SKIPPATTERNS_LONGNAME,	"patterns to skip when fetching. Will override include flags (pattern, username, email). Comma-separated java-style regexps.", true);
+		setupParameter(INCLUDEPATTERNS_LONGNAME,INCLUDEPATTERNS,INCLUDEPATTERNS_LONGNAME,"patterns to include when fetching. Will be overridden by any exclude flags (pattern, username, email). Comma-separated java-style regexps.", true);
+		setupParameter(SKIPEMAIL_LONGNAME,		SKIPEMAIL,  	SKIPEMAIL_LONGNAME,		"email(s) to skip when fetching. Will override include flags (pattern, username, email). Comma-separated java-style regexps.", true);
+		setupParameter(INCLUDEEMAIL_LONGNAME, 	INCLUDEEMAIL,  	INCLUDEEMAIL_LONGNAME, 	"email(s) to include when fetching. Will be overridden by any exclude flags (pattern, username, email). Comma-separated java-style regexps.", true);
+		setupParameter(SKIPUSERNAME_LONGNAME, 	SKIPUSERNAME,  	SKIPUSERNAME_LONGNAME,	"user name(s) to skip when fetching. Will override include flags (pattern, username, email). Comma-separated java-style regexps.", true);	
+		setupParameter(INCLUDEUSERNAME_LONGNAME,INCLUDEUSERNAME,INCLUDEUSERNAME_LONGNAME,"user name(s) to include when fetching. Will be overridden by any exclude flags (pattern, username, email). Comma-separated java-style regexps.", true);
+		setupParameter(DESTINATION_LONGNAME, 	DESTINATION,  	DESTINATION_LONGNAME,	"directory where the generated package.xml will be written", true);
+		setupParameter(METADATATARGETDIR_LONGNAME, METADATATARGETDIR,  METADATATARGETDIR_LONGNAME, "Directory to download meta data source (different to where package.xml will go) to", true);
+		setupParameter(MAXITEMS_LONGNAME, 		MAXITEMS,  		MAXITEMS_LONGNAME,		"max number of items to put in a single package xml (defaults to 10000 if not provided)", true);
+		setupParameter(FROMDATE_LONGNAME, 		FROMDATE,  		FROMDATE_LONGNAME,		"only items last modified on or after this date (YYYY-MM-DD) will be included (in connecting user's local time zone)", true);
+		setupParameter(TODATE_LONGNAME, 		TODATE,  		TODATE_LONGNAME,		"only items last modified on or before this date (YYYY-MM-DD) will be included (in connecting user's local time zone)", true);
+		setupParameter(LOGLEVEL_LONGNAME, 		LOGLEVEL,  		LOGLEVEL_LONGNAME,		"output log level (INFO, FINE, FINER make sense) - defaults to INFO if not provided", true);
+		setupParameter(INCLUDECHANGEDATA_LONGNAME, INCLUDECHANGEDATA,INCLUDECHANGEDATA_LONGNAME, "include lastmodifiedby and date fields in every metadataitem output", false);
+		setupParameter(DOWNLOAD_LONGNAME, 		DOWNLOAD,  		DOWNLOAD_LONGNAME,		"directly download assets, removing the need for ANT or MDAPI call", false);
+		setupParameter(GITCOMMIT_LONGNAME, 		GITCOMMIT,  	GITCOMMIT_LONGNAME,		"commits the changes to git. Requires -d -c options", false);
+		setupParameter(LOCALONLY_LONGNAME, 		LOCALONLY,  	LOCALONLY_LONGNAME, 	"Don't re-download package.zip files, but process existing ones", false);
+		setupParameter(UNZIP_LONGNAME, 			UNZIP,  		UNZIP_LONGNAME,			"unzip any retrieved package(s)", false);
+		setupParameter(BASEDIRECTORY_LONGNAME, 	BASEDIRECTORY,  BASEDIRECTORY_LONGNAME,	"base directory from which to generate package.xml", true);
+		setupParameter(STRIPUSERPERMISSIONS_LONGNAME,STRIPUSERPERMISSIONS,STRIPUSERPERMISSIONS_LONGNAME, "strip userPermissions tags from profile files (only applies if the -do switch is also used)", false);
+
+
 	}
-	
+
+	private void setupParameter(String propFileParamName, String shortParamName, String longParamName, String paramDescription,	boolean hasArgs) {
+		Map<String, String> thisParamMap = new HashMap<>();
+		thisParamMap.put("propFileParamName", propFileParamName);
+		thisParamMap.put("shortParamName", shortParamName);
+		thisParamMap.put("longParamName", longParamName);
+		paramDefinitions.put(longParamName, thisParamMap);
+		if (hasArgs) {
+			this.options.addOption(Option.builder(shortParamName).longOpt(longParamName)
+					.desc(paramDescription)
+					.hasArg()
+					.build());		
+		} else {
+			this.options.addOption(Option.builder(shortParamName).longOpt(longParamName)
+					.desc(paramDescription)
+					.build());
+		}
+		
+	}
+
 	private static void displayVersionNumber() throws IOException, XmlPullParserException {
 		MavenXpp3Reader reader = new MavenXpp3Reader();
-	    Model model;
-	    if ((new File("pom.xml")).exists())
-	      model = reader.read(new FileReader("pom.xml"));
-	    else
-	      model = reader.read(
-	        new InputStreamReader(
-	          PackageBuilderCommandLine.class.getResourceAsStream(
-	            "/META-INF/maven/com.kgal/PackageBuilder/pom.xml"
-	          )
-	        )
-	      );
-	    System.out.println(model.getArtifactId() + " " + model.getVersion());
-		
+		Model model;
+		if ((new File("pom.xml")).exists())
+			model = reader.read(new FileReader("pom.xml"));
+		else
+			model = reader.read(
+					new InputStreamReader(
+							PackageBuilderCommandLine.class.getResourceAsStream(
+									"/META-INF/maven/com.kgal/PackageBuilder/pom.xml"
+									)
+							)
+					);
+		System.out.println(model.getArtifactId() + " " + model.getVersion());
+
 	}
 
 }
