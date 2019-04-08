@@ -106,7 +106,7 @@ public class PackageBuilderCommandLine {
 	public static final String UNZIP_LONGNAME = "unzip";
 	public static final String RETAINTARGETDIR = "rt";
 	public static final String RETAINTARGETDIR_LONGNAME = "retaintargetdir";
-	
+
 	Map<String, Map<String, String>> paramDefinitions = new HashMap<>();
 
 	/**
@@ -169,13 +169,13 @@ public class PackageBuilderCommandLine {
 			List<Properties> propFileList = getPropsFromFiles(line.getOptionValue(ORGFILE));
 
 			// now populate parameter array with parameters
-			
+
 			for (Map<String, String> paramDefinition : paramDefinitions.values()) {
 				readParameter(propFileList, 
-								line, 
-								paramDefinition.get("propFileParamName"), 
-								paramDefinition.get("shortParamName"), 
-								paramDefinition.get("longParamName"));
+						line, 
+						paramDefinition.get("propFileParamName"), 
+						paramDefinition.get("shortParamName"), 
+						paramDefinition.get("longParamName"));
 			}
 		}	
 
@@ -187,11 +187,11 @@ public class PackageBuilderCommandLine {
 		////////////////////////////////////////////////////////////////////////
 
 
-//		skipping this, going to setting LOGLEVEL directly from command/property
-// 		if LOGLEVEL parameter is provided, set loglevel to LOGLEVEL, else it will default to normal
-//		if (isOptionSet(LOGLEVEL_LONGNAME)) {
-//			this.parameters.put("loglevel", LOGLEVEL_LONGNAME);
-//		}        
+		//		skipping this, going to setting LOGLEVEL directly from command/property
+		// 		if LOGLEVEL parameter is provided, set loglevel to LOGLEVEL, else it will default to normal
+		//		if (isOptionSet(LOGLEVEL_LONGNAME)) {
+		//			this.parameters.put("loglevel", LOGLEVEL_LONGNAME);
+		//		}        
 
 		// add default to current directory if no target directory given
 		if (!this.isParameterProvided(DESTINATION_LONGNAME)) {
@@ -240,7 +240,7 @@ public class PackageBuilderCommandLine {
 						+ " either basedir and destination or serverurl, username and password required as minimum");
 			}
 		}
-		
+
 		List<String> parameters = new ArrayList<String>(this.parameters.keySet());
 		Collections.sort(parameters);
 
@@ -272,9 +272,11 @@ public class PackageBuilderCommandLine {
 
 	private List<Properties> getPropsFromFiles(String propFilesParameter) {
 		List<Properties> retval = new ArrayList<Properties>(); 
-		for (final String paramFileName : propFilesParameter.split(",")) {
-			retval.add(Utils.initProps(paramFileName.trim()));
-		}			
+		if (propFilesParameter != null) {
+			for (final String paramFileName : propFilesParameter.split(",")) {
+				retval.add(Utils.initProps(paramFileName.trim()));
+			}			
+		}
 		return retval;
 	}
 
@@ -323,11 +325,11 @@ public class PackageBuilderCommandLine {
 				"java -jar PackageBuilder.jar [-b basedirectory] [-o <parameter file1>,<parameter file2>] [-u <SF username>] [-p <SF password>]",
 				this.options);
 	}
-	
+
 	// add any new parameters here only
 
 	private void setupOptions() {
-		
+
 		setupParameter(ORGFILE_LONGNAME, 		ORGFILE, 		ORGFILE_LONGNAME, 		"file containing org parameters (see below)", true);
 		setupParameter("sf.apiversion", 		APIVERSION, 	APIVERSION_LONGNAME, 	"api version to use, will default to " + PackageBuilder.API_VERSION, true);
 		setupParameter("sf.serverurl", 			SERVERURL, 		SERVERURL_LONGNAME, 	"server URL for the org (https://login.salesforce.com)", true);
@@ -373,7 +375,7 @@ public class PackageBuilderCommandLine {
 					.desc(paramDescription)
 					.build());
 		}
-		
+
 	}
 
 	private static void displayVersionNumber() throws IOException, XmlPullParserException {
