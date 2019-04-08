@@ -943,12 +943,14 @@ public class PackageBuilder {
 		});
 		
 		// new feature here
-		// if doing git commit, clean out the target directory before starting
+		// if doing git commit, clean out the target directory before starting (unless requested not to)
 		// but first check that someplace above it actually has the GIT stuff in it
 		
 		if (gitCommit) {
 			File targetDirectory = new File(this.parameters.get(PackageBuilderCommandLine.DESTINATION_LONGNAME) + File.separator + this.metaSourceDownloadDir);
-			FileUtils.deleteDirectory(targetDirectory);
+			if (!isParamTrue(PackageBuilderCommandLine.RETAINTARGETDIR_LONGNAME)) {
+				FileUtils.deleteDirectory(targetDirectory);
+			}
 		}
 
 		WORKER_THREAD_POOL.invokeAll(allPersisters).stream().map(future -> {

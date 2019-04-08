@@ -104,6 +104,8 @@ public class PackageBuilderCommandLine {
 	public static final String LOCALONLY_LONGNAME = "localonly";
 	public static final String UNZIP = "u";
 	public static final String UNZIP_LONGNAME = "unzip";
+	public static final String RETAINTARGETDIR = "rt";
+	public static final String RETAINTARGETDIR_LONGNAME = "retaintargetdir";
 	
 	Map<String, Map<String, String>> paramDefinitions = new HashMap<>();
 
@@ -351,7 +353,7 @@ public class PackageBuilderCommandLine {
 		setupParameter(UNZIP_LONGNAME, 			UNZIP,  		UNZIP_LONGNAME,			"unzip any retrieved package(s)", false);
 		setupParameter(BASEDIRECTORY_LONGNAME, 	BASEDIRECTORY,  BASEDIRECTORY_LONGNAME,	"base directory from which to generate package.xml", true);
 		setupParameter(STRIPUSERPERMISSIONS_LONGNAME,STRIPUSERPERMISSIONS,STRIPUSERPERMISSIONS_LONGNAME, "strip userPermissions tags from profile files (only applies if the -do switch is also used)", false);
-
+		setupParameter(RETAINTARGETDIR_LONGNAME,RETAINTARGETDIR,RETAINTARGETDIR_LONGNAME,"do not clear the metadatatargetdir provided when unzipping", false);
 
 	}
 
