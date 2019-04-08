@@ -1,6 +1,8 @@
 package com.kgal.packagebuilder;
 
 import java.util.Properties;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 import com.sforce.soap.metadata.MetadataConnection;
 import com.sforce.soap.partner.LoginResult;
@@ -25,7 +27,7 @@ public class LoginUtil {
      * Creates a MetadataConnection based on url, credentials
      */
 
-    public static MetadataConnection mdLogin(final Properties props) throws ConnectionException {
+    public static MetadataConnection mdLogin(final Properties props, Logger logger) throws ConnectionException {
         final String username = props.getProperty(LoginUtil.USERNAME_PROPSKEY);
         final String password = props.getProperty(LoginUtil.PASSWORD_PROPSKEY);
         String url = props.getProperty(LoginUtil.URL_PROPSKEY);
@@ -39,7 +41,7 @@ public class LoginUtil {
                 url += "/services/Soap/u/" + props.getProperty(LoginUtil.APIVERSION_PROPSKEY, LoginUtil.APIVERSION);
             }
 
-            return LoginUtil.mdLogin(url, username, password);
+            return LoginUtil.mdLogin(url, username, password, logger);
         } else {
             return null;
         }
@@ -49,13 +51,13 @@ public class LoginUtil {
      * Creates a MetadataConnection based on a properties object
      */
 
-    public static MetadataConnection mdLogin(final String url, final String user, final String pwd)
+    public static MetadataConnection mdLogin(final String url, final String user, final String pwd, Logger logger)
             throws ConnectionException {
         final LoginResult loginResult = LoginUtil.loginToSalesforce(user, pwd, url);
         return LoginUtil.createMetadataConnection(loginResult);
     }
 
-    public static PartnerConnection soapLogin(final String url, final String user, final String pwd) {
+    public static PartnerConnection soapLogin(final String url, final String user, final String pwd, Logger logger) {
 
         PartnerConnection conn = null;
 
@@ -64,7 +66,7 @@ public class LoginUtil {
             config.setUsername(user);
             config.setPassword(pwd);
 
-            System.out.println("AuthEndPoint: " + url);
+            logger.log(Level.INFO, "AuthEndPoint: " + url);
             config.setAuthEndpoint(url);
 
             conn = new PartnerConnection(config);

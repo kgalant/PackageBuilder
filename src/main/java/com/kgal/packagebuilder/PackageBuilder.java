@@ -774,7 +774,7 @@ public class PackageBuilder {
 		this.srcPwd = this.parameters.get(PackageBuilderCommandLine.PASSWORD_LONGNAME);
 		this.skipItems = this.parameters.get(PackageBuilderCommandLine.SKIPPATTERNS_LONGNAME);
 		// Make a login call to source
-		this.srcMetadataConnection = LoginUtil.mdLogin(this.srcUrl, this.srcUser, this.srcPwd);
+		this.srcMetadataConnection = LoginUtil.mdLogin(this.srcUrl, this.srcUser, this.srcPwd, logger);
 
 		// Figure out what we are going to be fetching
 
@@ -784,7 +784,7 @@ public class PackageBuilder {
 		logger.log(Level.INFO, "Will fetch: " + String.join(", ", workToDo) + " from: " + this.srcUrl);
 		logger.log(Level.FINE, "Using user: " + this.srcUser + " skipping: " + this.skipItems);
 
-		System.out.println("target directory: " + this.targetDir);
+		logger.log(Level.INFO, "target directory: " + this.targetDir);
 
 		Utils.checkDir(this.targetDir);
 
@@ -964,7 +964,9 @@ public class PackageBuilder {
 			}
 			return result;
 
-		}).forEach(System.out::println);
+		}).forEach(result-> {
+			logger.log(Level.INFO, result);
+		});
 
 		if (!WORKER_THREAD_POOL.awaitTermination(1, TimeUnit.SECONDS)) {
 			//			logger.log(Level.SEVERE, "Threads not terminated within 15 sec");
@@ -1267,7 +1269,7 @@ public class PackageBuilder {
 		final HashMap<String, HashMap<String, String>> usersBySalesforceID = new HashMap<>();
 
 		// login
-		this.srcPartnerConnection = LoginUtil.soapLogin(this.srcUrl, this.srcUser, this.srcPwd);
+		this.srcPartnerConnection = LoginUtil.soapLogin(this.srcUrl, this.srcUser, this.srcPwd, logger);
 
 		// build the query
 

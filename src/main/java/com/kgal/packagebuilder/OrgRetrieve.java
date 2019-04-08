@@ -74,16 +74,12 @@ public class OrgRetrieve {
 					result.getErrorMessage());
 		} else if (result.getStatus() == RetrieveStatus.Succeeded) {  
 			// Print out any warning messages
-			final StringBuilder stringBuilder = new StringBuilder();
 			if (result.getMessages() != null) {
+				this.logger.log(Level.INFO, "Retrieve warnings:\n");
 				for (final RetrieveMessage rm : result.getMessages()) {
-					stringBuilder.append(rm.getFileName() + " - " + rm.getProblem() + "\n");
+					logger.log(Level.INFO, rm.getFileName() + " - " + rm.getProblem());
 				}
 			}
-			if (stringBuilder.length() > 0) {
-				this.logger.log(Level.INFO, "Retrieve warnings:\n" + stringBuilder);
-			}
-
 
 			File resultsFile = new File(zipFile);
 			this.logger.log(Level.INFO,"Writing results to zip file: " + resultsFile.getCanonicalPath());
