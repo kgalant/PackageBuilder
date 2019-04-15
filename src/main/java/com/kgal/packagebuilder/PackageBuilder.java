@@ -569,10 +569,10 @@ public class PackageBuilder {
 
 			} while (queryIterator.hasNext());
 
-		} catch (final ConnectionException ce) {
+		} catch (final Exception e) {
 			// ce.printStackTrace();
 			logger.log(Level.INFO, "\nException processing: " + metadataType);
-			logger.log(Level.INFO, "Error: " + ce.getMessage());
+			logger.log(Level.INFO, "Error: " + e.getMessage());
 		}
 		this.endTiming(startTime, "");
 

@@ -32,7 +32,7 @@ public class InventoryItem {
 	private void initItem(String i, FileProperties f, DescribeMetadataObject d) {
 		this.itemName = i;
 		this.fp = f;
-		if (fp != null) {
+		if (fp != null && d != null) {
 			folderName = d.getDirectoryName();
 		} else {
 			folderName = "";

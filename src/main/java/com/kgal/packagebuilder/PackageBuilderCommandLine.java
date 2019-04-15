@@ -102,7 +102,7 @@ public class PackageBuilderCommandLine {
 	public static final String STRIPUSERPERMISSIONS_LONGNAME = "stripprofileuserpermissions";
 	public static final String LOCALONLY = "lo";
 	public static final String LOCALONLY_LONGNAME = "localonly";
-	public static final String UNZIP = "u";
+	public static final String UNZIP = "uz";
 	public static final String UNZIP_LONGNAME = "unzip";
 	public static final String RETAINTARGETDIR = "rt";
 	public static final String RETAINTARGETDIR_LONGNAME = "retaintargetdir";
