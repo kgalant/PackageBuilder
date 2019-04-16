@@ -55,7 +55,7 @@ public class ZipAndFileFixer {
 	public void adjustFileDates(final String targetDirName) throws IOException {
 		final File targetDir = new File((targetDirName == null) ? "." : targetDirName);
 		if (!targetDir.exists() || !targetDir.isDirectory()) {
-			throw new IOException("Target dir doesn't exist or is not a directory:" + targetDirName);
+			throw new IOException("Unzip target dir doesn't exist or is not a directory: " + targetDirName + " - cannot continue GIT operation");
 		}
 
 		Collection<File> myFiles = FileUtils.listFiles(targetDir, null, true);

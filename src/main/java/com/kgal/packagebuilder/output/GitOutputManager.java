@@ -58,12 +58,13 @@ public class GitOutputManager {
 	
 	private static String				sourceFolder = "src";
 
-	public GitOutputManager(final Map<String, String> parameters, Logger l) {
+	public GitOutputManager(final Map<String, String> parameters, Logger l) throws IOException {
+		logger = l;
 		this.parameters = parameters;
 		//        this.gitPath = new File(this.getParam(PackageBuilderCommandLine.METADATATARGETDIR_LONGNAME, "src"));
 		this.gitPath = findGitRoot(this.getParam(PackageBuilderCommandLine.METADATATARGETDIR_LONGNAME, sourceFolder));
 		this.sourceDirPath = new File(this.getParam(PackageBuilderCommandLine.METADATATARGETDIR_LONGNAME, sourceFolder));
-		logger = l;
+
 	}
 
 	public void commitToGit(final HashMap<String, InventoryItem> inventoryLookup)
@@ -295,13 +296,17 @@ public class GitOutputManager {
 		return result;
 	}
 
-	private File findGitRoot (String myCurrentDirectory) {
+	private File findGitRoot (String myCurrentDirectory) throws IOException {
 		File startingDirectory = new File(myCurrentDirectory);
+		logger.log(Level.INFO, "Looking for GIT root at: " + startingDirectory.getCanonicalPath());
 		if (hasGitSubdirectory(startingDirectory)) {
+			logger.log(Level.INFO, "GIT root found at: " + myCurrentDirectory);
 			return startingDirectory;
 		} else {
 			File parentToCurrentDirectory = startingDirectory.getParentFile();
-			if (hasGitSubdirectory(parentToCurrentDirectory)) {
+			logger.log(Level.INFO, "Looking for GIT root at: " + parentToCurrentDirectory.getCanonicalPath());
+			if (parentToCurrentDirectory != null && hasGitSubdirectory(parentToCurrentDirectory)) {
+				logger.log(Level.INFO, "GIT root found at: " + myCurrentDirectory);
 				return parentToCurrentDirectory;
 			}
 		}
@@ -315,6 +320,13 @@ public class GitOutputManager {
 		File potentialGitDirectory = new File(directory.getAbsolutePath() + File.separator + ".git");
 		return potentialGitDirectory.exists() && potentialGitDirectory.isDirectory();  
 
+	}
+
+	public boolean hasGitRoot() {
+		if (gitPath != null) {
+			return true;
+		}
+		return false;
 	}
 
 }

@@ -12,6 +12,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
@@ -96,6 +97,15 @@ public class PackageBuilder {
 
 	};
 
+	private static final String[] OBJECTTYPES = new String[] { 
+			"BusinessProcess","CompactLayout","CustomField","FieldSet","Index","ListView","NamedFilter","RecordType","SharingReason","ValidationRule","WebLink"
+	};
+
+	private static final String[] WORKFLOWTYPES = new String[] { 
+			"WorkflowActionReference","WorkflowAlert","WorkflowEmailRecipient","WorkflowFieldUpdate","WorkflowFlowAction","WorkflowFlowActionParameter", 		// Workflow components
+			"WorkflowKnowledgePublish","WorkflowOutboundMessage","WorkflowRule","WorkflowTask","WorkflowTimeTrigger"											// Workflow components
+	};
+
 	private static final String[] ITEMSTOINCLUDEWITHPROFILESPERMSETS = new String[] { "ApexClass", "CustomApplication", "CustomField", 
 			"CustomObject", "CustomTab", "ExternalDataSource", "RecordType", "ApexPage"};
 
@@ -126,7 +136,7 @@ public class PackageBuilder {
 	private final long                              totalTimeStart = System.currentTimeMillis();
 	//	private String            dbFilename;
 	private String            targetDir = "";
-	private OperationMode     mode;
+	//	private OperationMode     mode;
 	private PartnerConnection srcPartnerConnection;
 
 	private boolean includeChangeData        = false;
@@ -186,33 +196,37 @@ public class PackageBuilder {
 
 		if (this.parameters.get(PackageBuilderCommandLine.BASEDIRECTORY_LONGNAME) != null) {
 			this.generateInventoryFromDir(inventory);
-			this.mode = OperationMode.DIR;
+			//			this.mode = OperationMode.DIR;
 		} else {
 			this.generateInventoryFromOrg(inventory);
-			this.mode = OperationMode.ORG;
+			//			this.mode = OperationMode.ORG;
 		}
 		// This is where the actual work happens creating Package[].xml AND download/unzip assets
 		this.generatePackageXML(inventory);
 
 		if (this.gitCommit) {
-			
+
 			// if we are doing git commit, have to prepare an inventory map so we can properly set each file's last modified date, etc
-			
+
 			final HashMap<String, InventoryItem> totalInventory = generateTotalInventory(inventory);
-			
+
 			// now walk the contents of the folder we've unzipped into and fix any of the dates 
 			// need to get all the files for InventoryItems that translate to multiple files
 			// so classes, etc. that have a -meta.xml, aura that have child directories, etc.
-			
+
 			new ZipAndFileFixer(totalInventory, logger).adjustFileDates(this.metaSourceDownloadDir);
-			
+
 			final GitOutputManager gom = new GitOutputManager(this.parameters, logger);
-			gom.commitToGit(totalInventory);
+			if (gom.hasGitRoot()) {
+				gom.commitToGit(totalInventory);
+			} else {
+				logger.log(Level.INFO, "Could not locate GIT root, cannot continue GIT operation.");
+			}
 		}
 		this.endTiming(this.totalTimeStart, "Complete run");
 
 	}
-	
+
 	public static InventoryItem getInventoryItemForFile(Map<String, InventoryItem> totalInventory, File f, String targetDirName) throws IOException {
 
 		String key = f.getCanonicalPath();
@@ -257,7 +271,7 @@ public class PackageBuilder {
 		// TODO Auto-generated method stub
 		return item;
 	}
-	
+
 
 	private HashMap<String,HashMap<String, ArrayList<InventoryItem>>> createPackageFiles(final HashMap<String, ArrayList<InventoryItem>> myCompleteInventory) {
 
@@ -376,67 +390,70 @@ public class PackageBuilder {
 			final ArrayList<InventoryItem> mdTypeList = myFile.get(mdType);
 			final int mdTypeSize = mdTypeList.size();
 
-			// do we have room in this file for the
-			if ((fileCount + mdTypeSize) > maxItemsInRegularPackage) {
-				// no, we don't, finish file off, add to list, create new and
-				// add to that
+			if (mdTypeSize > 0) {
 
-				logger.log(Level.FINE, "Type " + mdType + ", won't fit into this file - #items: " + mdTypeSize + ".");
+				// do we have room in this file for the
+				if ((fileCount + mdTypeSize) > maxItemsInRegularPackage) {
+					// no, we don't, finish file off, add to list, create new and
+					// add to that
 
-				//put part of this type into this file
+					logger.log(Level.FINE, "Type " + mdType + ", won't fit into this file - #items: " + mdTypeSize + ".");
 
-				ArrayList<InventoryItem> mdTypeListPartial = new ArrayList<InventoryItem>(mdTypeList.subList(0, maxItemsInRegularPackage - fileCount));
-				currentFile.put(mdType, mdTypeListPartial);
-				mdTypeList.removeAll(mdTypeListPartial);
-				fileCount += mdTypeListPartial.size();
-				logger.log(Level.FINE, 
-						"Adding type: " + mdType + "(" + mdTypeListPartial.size() + " items) to file " + fileIndex + ", total count now: "
-								+ fileCount);
-				if (!continuingPreviousFile) {
-					files.add(currentFile);
-				}
-				logger.log(Level.FINE, "Finished composing file " + fileIndex + ", total count: " + fileCount + " items.");
-				continuingPreviousFile = false;
+					//put part of this type into this file
 
-				// finish and start new file
-
-
-				currentFile = new HashMap<>();
-				fileCount = 0;
-				fileIndex++;
-			}
-			// now add this type to this file and continue
-			// but need to check that this type isn't more than maxItems
-			// if yes, then split this type into multiple pieces
-
-			while (mdTypeList.size() > maxItemsInRegularPackage) {
-				// too much even for a single file just with that, 
-				// break up into multiple files
-
-				ArrayList<InventoryItem> mdTypeListPartial = new ArrayList<InventoryItem>(mdTypeList.subList(0, maxItemsInRegularPackage));
-				currentFile.put(mdType, mdTypeListPartial);
-				fileCount += mdTypeListPartial.size();
-				if (!continuingPreviousFile) {
-					files.add(currentFile);
-					continuingPreviousFile = false;
+					ArrayList<InventoryItem> mdTypeListPartial = new ArrayList<InventoryItem>(mdTypeList.subList(0, maxItemsInRegularPackage - fileCount));
+					currentFile.put(mdType, mdTypeListPartial);
+					mdTypeList.removeAll(mdTypeListPartial);
+					fileCount += mdTypeListPartial.size();
+					logger.log(Level.FINE, 
+							"Adding type: " + mdType + "(" + mdTypeListPartial.size() + " items) to file " + fileIndex + ", total count now: "
+									+ fileCount);
+					if (!continuingPreviousFile) {
+						files.add(currentFile);
+					}
 					logger.log(Level.FINE, "Finished composing file " + fileIndex + ", total count: " + fileCount + " items.");
+					continuingPreviousFile = false;
+
+					// finish and start new file
+
+
+					currentFile = new HashMap<>();
+					fileCount = 0;
+					fileIndex++;
 				}
-				currentFile = new HashMap<>();
-				mdTypeList.removeAll(mdTypeListPartial);
+				// now add this type to this file and continue
+				// but need to check that this type isn't more than maxItems
+				// if yes, then split this type into multiple pieces
+
+				while (mdTypeList.size() > maxItemsInRegularPackage) {
+					// too much even for a single file just with that, 
+					// break up into multiple files
+
+					ArrayList<InventoryItem> mdTypeListPartial = new ArrayList<InventoryItem>(mdTypeList.subList(0, maxItemsInRegularPackage));
+					currentFile.put(mdType, mdTypeListPartial);
+					fileCount += mdTypeListPartial.size();
+					if (!continuingPreviousFile) {
+						files.add(currentFile);
+						continuingPreviousFile = false;
+						logger.log(Level.FINE, "Finished composing file " + fileIndex + ", total count: " + fileCount + " items.");
+					}
+					currentFile = new HashMap<>();
+					mdTypeList.removeAll(mdTypeListPartial);
+					logger.log(Level.FINE, 
+							"Adding type: " + mdType + "(" + mdTypeListPartial.size() + " items) to file " + fileIndex + ", total count now: "
+									+ fileCount);
+
+					fileCount = 0;
+					fileIndex++;
+
+				}
+
+				currentFile.put(mdType, mdTypeList);
+				fileCount += mdTypeList.size();
 				logger.log(Level.FINE, 
-						"Adding type: " + mdType + "(" + mdTypeListPartial.size() + " items) to file " + fileIndex + ", total count now: "
+						"Adding type: " + mdType + "(" + mdTypeList.size() + " items) to file " + fileIndex + ", total count now: "
 								+ fileCount);
-
-				fileCount = 0;
-				fileIndex++;
-
 			}
-
-			currentFile.put(mdType, mdTypeList);
-			fileCount += mdTypeList.size();
-			logger.log(Level.FINE, 
-					"Adding type: " + mdType + "(" + mdTypeList.size() + " items) to file " + fileIndex + ", total count now: "
-							+ fileCount);
 		}
 
 		// finish off any last file
@@ -858,6 +875,14 @@ public class PackageBuilder {
 
 		skipCount = this.handleSkippingItems(myFile);
 
+		// now collapse all subtypes into the parent type
+
+		handleCollapsingItems(myFile);
+
+		// now get rid of anything that is buggy
+
+		handleBuggyAPIItems(myFile);
+
 		// now break it up into files if needed
 
 		final HashMap<String,HashMap<String,ArrayList<InventoryItem>>> files = this.createPackageFiles(myFile);
@@ -887,33 +912,33 @@ public class PackageBuilder {
 		return files;
 
 	}
-	
+
 	/*
 	 * this method will take the total inventory by type HashMap<String, ArrayList<InventoryItem>>
 	 * and generate a single map keyed by a unique key which is the filename 
 	 * 
 	 */
-	
+
 	private HashMap<String, InventoryItem> generateTotalInventory(HashMap<String, ArrayList<InventoryItem>> inventory) {
 		HashMap<String, InventoryItem> totalInventory = new HashMap<>();
-		
+
 		for (String metadataType : inventory.keySet()) {
 			for (InventoryItem item : inventory.get(metadataType)) {
 				String key = item.getFileName();
-				
+
 				// strip suffix from file name
-				
+
 				int idx = key.lastIndexOf(".");
-				
+
 				if (idx > 0) {
 					key = key.substring(0, idx);
 				}
-				
+
 				totalInventory.put(key, item);
 				logger.log(Level.FINE, "Added: " + key + " to git inventory");
 			}
 		}
-		
+
 		return totalInventory;
 	}
 
@@ -936,16 +961,16 @@ public class PackageBuilder {
 					this.downloadData,
 					this.unzipDownload,
 					this.srcMetadataConnection);
-				if (this.simulateDataDownload) {
-					pfp.setLocalOnly();
-				}
+			if (this.simulateDataDownload) {
+				pfp.setLocalOnly();
+			}
 			allPersisters.add(pfp);
 		});
-		
+
 		// new feature here
 		// if doing git commit, clean out the target directory before starting (unless requested not to)
 		// but first check that someplace above it actually has the GIT stuff in it
-		
+
 		if (gitCommit) {
 			File targetDirectory = new File(this.parameters.get(PackageBuilderCommandLine.DESTINATION_LONGNAME) + File.separator + this.metaSourceDownloadDir);
 			if (!isParamTrue(PackageBuilderCommandLine.RETAINTARGETDIR_LONGNAME)) {
@@ -1024,6 +1049,127 @@ public class PackageBuilder {
 
 		}
 		return typesToFetch;
+	}
+
+	/* function to handle items which are buggy in the API
+	 * 
+	 * will remove and log any items that we know would break a retrieve
+	 * 
+	 */
+
+	private void handleBuggyAPIItems(final HashMap<String, ArrayList<InventoryItem>> myFile) {
+
+	}
+
+	/* function to handle collapsing items in the result
+	 * 
+	 * ie. if we're asking for CustomFields and CustomObjects, the resulting pacakge.xml should contain only
+	 * CustomObject:MyCustomObject__c, not both CustomObject:MyCustomObject__c and CustomField:MyCustomObject__c.MyField__c
+	 * 
+	 * handling child items of CustomObject, Workflow
+	 * 
+	 */
+
+	private int handleCollapsingItems(final HashMap<String, ArrayList<InventoryItem>> myFile) {
+		int removedItemsCount = 0;
+
+		// first, do CustomObject
+
+		if (myFile.containsKey("CustomObject")) {
+
+			List<InventoryItem> customObjects = myFile.get("CustomObject");
+
+			Set<String> customObjectNames = new HashSet<String>();
+
+			for (InventoryItem i : customObjects) {
+				customObjectNames.add(i.getFullName());
+			}
+
+			for (final String mdType : OBJECTTYPES) {
+
+				// if the main thing contains this given type of item, and also contains the CustomObject type
+				// iterate over the individual items of the child type, and remove any where we're also retrieving the 
+				// CustomObject parent
+
+				if (myFile.containsKey(mdType) ) {
+					List<InventoryItem> itemsToRemove = new ArrayList<>();
+					final ArrayList<InventoryItem> items = myFile.get(mdType);
+
+					for (Iterator<InventoryItem> i = items.iterator(); i.hasNext();) {
+						// get name of this item
+						InventoryItem item = i.next();
+
+						String itemName = item.getFullName();
+
+						// get name of the parent custom object
+
+						String parentObject = itemName.substring(0, itemName.indexOf("."));
+
+						// check if this custom object is being retrieved
+
+						if (customObjectNames.contains(parentObject)) {
+							itemsToRemove.add(item);
+							logger.log(Level.FINER, "Removing item " + itemName + " as its parent type is also getting retrieved.");
+						}
+
+					}
+					int itemsCountBefore = items.size();					
+					items.removeAll(itemsToRemove);
+					int itemsRemoved = itemsCountBefore - items.size();
+					logger.log(Level.FINE, "Ignoring " + itemsRemoved + " " + mdType + "(s) as the parent CustomObject(s) are also getting retrieved.");
+				}
+			}
+		}
+
+		// now do the same with Workflow
+
+		if (myFile.containsKey("Workflow")) {
+
+			List<InventoryItem> workflows = myFile.get("Workflow");
+
+			Set<String> workflowNames = new HashSet<String>();
+
+			for (InventoryItem i : workflows) {
+				workflowNames.add(i.getFullName());
+			}
+
+			for (final String mdType : WORKFLOWTYPES) {
+
+				// if the main thing contains this given type of item, and also contains the CustomObject type
+				// iterate over the individual items of the child type, and remove any where we're also retrieving the 
+				// CustomObject parent
+
+				if (myFile.containsKey(mdType) ) {
+					List<InventoryItem> itemsToRemove = new ArrayList<>();
+					final ArrayList<InventoryItem> items = myFile.get(mdType);
+
+					for (Iterator<InventoryItem> i = items.iterator(); i.hasNext();) {
+						// get name of this item
+						InventoryItem item = i.next();
+
+						String itemName = item.getFullName();
+
+						// get name of the parent custom object
+
+						String parentObject = itemName.substring(0, itemName.indexOf("."));
+
+						// check if this custom object is being retrieved
+
+						if (workflowNames.contains(parentObject)) {
+							itemsToRemove.add(item);
+							logger.log(Level.FINER, "Removing item " + itemName + " as its parent type is also getting retrieved.");
+						}
+
+					}
+					int itemsCountBefore = items.size();					
+					items.removeAll(itemsToRemove);
+					int itemsRemoved = itemsCountBefore - items.size();
+					logger.log(Level.FINE, "Ignoring " + itemsRemoved + " " + mdType + "(s) as the parent Workflow(s) are also getting retrieved.");
+				}
+			}
+		}
+
+		return removedItemsCount;
 	}
 
 
