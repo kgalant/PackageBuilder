@@ -162,7 +162,7 @@ public class PackageAndFilePersister implements Callable<PersistResult> {
 		zipResult = new File(zipFileNameWithPath);
 
 		if (zipResult.exists()) {
-			Utils.unzip(zipFileName, this.metaSourceDownloadDir);
+			Utils.unzip(zipFileNameWithPath, this.metaSourceDownloadDir);
 		} else {
 			throw new Exception("Asked to unzip " + zipFileNameWithPath + " but file not found, something is wrong.");
 		}		
