@@ -539,16 +539,10 @@ public class PackageBuilder {
 					// hack alert - currently (API 45) listMetadata returns nothing for StandardValueSet
 					if (!metadataType.equals("StandardValueSet")) {
 						for (final FileProperties n : srcMd) {
-							if (
-									(
-											metadataType.equals("Document") ||
-											metadataType.equals("EmailTemplate") ||
-											metadataType.equals("Report") ||
-											metadataType.equals("Dashboard")
-											) ||
-									((n.getNamespacePrefix() == null) || n.getNamespacePrefix().equals(""))
+							if (((n.getNamespacePrefix() == null) || n.getNamespacePrefix().equals(""))
+								|| this.isParamTrue(PackageBuilderCommandLine.INCLUDEMANAGEDPACKAGES_LONGNAME)
 									) {
-								// packageMap.add(n.getFullName());
+
 								InventoryItem i = new InventoryItem(n.getFullName(), n, this.describeMetadataObjectsMap.get(metadataType));
 								packageInventoryList.put(n.getFullName(), i);
 								logger.log(Level.FINER, "Adding item " + i.getExtendedName() + " to inventory.");

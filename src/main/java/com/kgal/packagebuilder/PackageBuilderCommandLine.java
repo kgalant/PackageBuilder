@@ -106,6 +106,8 @@ public class PackageBuilderCommandLine {
 	public static final String UNZIP_LONGNAME = "unzip";
 	public static final String RETAINTARGETDIR = "rt";
 	public static final String RETAINTARGETDIR_LONGNAME = "retaintargetdir";
+	public static final String INCLUDEMANAGEDPACKAGES = "imp";
+	public static final String INCLUDEMANAGEDPACKAGES_LONGNAME = "includemanagedpackages";
 
 	Map<String, Map<String, String>> paramDefinitions = new HashMap<>();
 
@@ -356,6 +358,7 @@ public class PackageBuilderCommandLine {
 		setupParameter(BASEDIRECTORY_LONGNAME, 	BASEDIRECTORY,  BASEDIRECTORY_LONGNAME,	"base directory from which to generate package.xml", true);
 		setupParameter(STRIPUSERPERMISSIONS_LONGNAME,STRIPUSERPERMISSIONS,STRIPUSERPERMISSIONS_LONGNAME, "strip userPermissions tags from profile files (only applies if the -do switch is also used)", false);
 		setupParameter(RETAINTARGETDIR_LONGNAME,RETAINTARGETDIR,RETAINTARGETDIR_LONGNAME,"do not clear the metadatatargetdir provided when unzipping", false);
+		setupParameter(INCLUDEMANAGEDPACKAGES_LONGNAME,INCLUDEMANAGEDPACKAGES,INCLUDEMANAGEDPACKAGES_LONGNAME,"include managed package metadata for inventory/retrieve operations", false);
 
 	}
 
