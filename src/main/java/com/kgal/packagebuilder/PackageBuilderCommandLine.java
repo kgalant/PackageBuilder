@@ -110,6 +110,8 @@ public class PackageBuilderCommandLine {
 	public static final String UNZIP_LONGNAME = "unzip";
 	public static final String RETAINTARGETDIR = "rt";
 	public static final String RETAINTARGETDIR_LONGNAME = "retaintargetdir";
+	
+	public static  String     VERSIONNUMBER       = "";
 
 	Map<String, Map<String, String>> paramDefinitions = new HashMap<>();
 
@@ -384,19 +386,23 @@ public class PackageBuilderCommandLine {
 	}
 
 	private static void displayVersionNumber() throws IOException, XmlPullParserException {
-		MavenXpp3Reader reader = new MavenXpp3Reader();
-		Model model;
-		if ((new File("pom.xml")).exists())
-			model = reader.read(new FileReader("pom.xml"));
-		else
-			model = reader.read(
-					new InputStreamReader(
-							PackageBuilderCommandLine.class.getResourceAsStream(
-									"/META-INF/maven/com.kgal/PackageBuilder/pom.xml"
-									)
-							)
-					);
-		System.out.println(model.getArtifactId() + " " + model.getVersion());
+		if (VERSIONNUMBER.equals("")) {
+			MavenXpp3Reader reader = new MavenXpp3Reader();
+			Model model;
+			if ((new File("pom.xml")).exists())
+				model = reader.read(new FileReader("pom.xml"));
+			else
+				model = reader.read(
+						new InputStreamReader(
+								PackageBuilderCommandLine.class.getResourceAsStream(
+										"/META-INF/maven/com.kgal/PackageBuilder/pom.xml"
+										)
+								)
+			);
+			VERSIONNUMBER = model.getArtifactId() + " " + model.getVersion();
+		}
+		
+		System.out.println(VERSIONNUMBER);
 
 	}
 
