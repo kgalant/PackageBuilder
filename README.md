@@ -47,6 +47,9 @@ unzip any retrieved package(s)
 place unzipped downloaded packages in this directory (else defaults to current directory)
 * -spp,--stripprofileuserpermissions
 if using -do, and the package contains Profiles, unzip the package and remove all userPermissions from each Profile file, then zip again
+* -in,--includenamespaceditems
+include items from managed packages, including the managed packages themselves. If this flag is not set, anything from a managed package will be ignored
+
 
 #### Filtering what goes in the package
 
