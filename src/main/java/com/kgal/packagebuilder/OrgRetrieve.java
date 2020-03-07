@@ -31,7 +31,7 @@ public class OrgRetrieve {
 
 	// manifest file that controls which components get retrieved
 	private String manifestFile;
-	private double apiVersion    = 45.0;
+	private double apiVersion    = 47.0;
 
 	// what to retrieve if not based on package.xml file
 

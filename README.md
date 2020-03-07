@@ -5,6 +5,8 @@ This is a tool for salesforce.com. It can do one of two things:
 * connect to an org and generate a package.xml that can subsequently be used with the Force.com Migration Tool to extract code and metadata from an org.
 * examine a directory containing an unzipped Force.com Migration Tool package and generate a package.xml 
 
+Current downloads support API up to 47 (Winter 20)
+
 ### Usage:
 ``` 
 java -jar PackageBuilder.jar [-o <parameter file1>,<parameterfile2>,...] [-u <SF username>] [-p <SF password>] [-s <SF url>] [-a <apiversion>] [-mi <metadataType1>,<metadataType2>,...] [-sp <pattern1>,<pattern2>,...] [-d <destinationpath>] [-v]
