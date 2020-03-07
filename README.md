@@ -5,7 +5,7 @@ This is a tool for salesforce.com. It can do one of two things:
 * connect to an org and generate a package.xml that can subsequently be used with the Force.com Migration Tool to extract code and metadata from an org.
 * examine a directory containing an unzipped Force.com Migration Tool package and generate a package.xml 
 
-Current downloads support API up to 47 (Winter 20)
+Current downloads support API up to 48 (Winter 20)
 
 ### Usage:
 ``` 
@@ -26,7 +26,7 @@ password for the org (t0pSecr3t)
 * -s,--serverurl `<arg>`        
 server URL for the org (https://login.salesforce.com)
 * -a,--apiversion `<arg>`
-api version to use, will default to 38.0
+api version to use, will default to 48.0
 * -mi,--metadataitems `<arg>`   
 metadata items to fetch (commaseparated list of metadata types in package.xml naming). If this parameter is not provided, PackageBuilder will query the org and inventory everything a Metadata Describe returns to it.
 * -d,--destination `<arg>`    

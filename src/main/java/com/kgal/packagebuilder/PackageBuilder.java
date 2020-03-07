@@ -62,7 +62,7 @@ public class PackageBuilder {
 	public static final String  DEFAULT_DATE_FORMAT    = "yyyy-MM-dd'T'HH:mm:ss";
 	public static final String  URLBASE                = "/services/Soap/u/";
 	public static final int     MAXITEMSINPACKAGE      = 10000;
-	public static final double   API_VERSION            = 47.0;
+	public static final double   API_VERSION            = 48.0;
 	public static final boolean  INCLUDECHANGEDATA      = false;
 	public static final int     CONCURRENT_THREADS     = 8;
 
