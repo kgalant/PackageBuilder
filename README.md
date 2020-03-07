@@ -48,7 +48,9 @@ place unzipped downloaded packages in this directory (else defaults to current d
 * -spp,--stripprofileuserpermissions
 if using -do, and the package contains Profiles, unzip the package and remove all userPermissions from each Profile file, then zip again
 * -in,--includenamespaceditems
-include items from managed packages, including the managed packages themselves. If this flag is not set, anything from a managed package will be ignored
+include items from managed packages, including the managed packages themselves. If this flag is not set, anything from a managed package will be ignored - see also -imp below
+* -imp,--includemanagedpackages
+include managed packages only - so InstalledPackage::MyPackage is included, but CustomObject::MyPackage__MyCustomObject__c is not
 
 
 #### Filtering what goes in the package

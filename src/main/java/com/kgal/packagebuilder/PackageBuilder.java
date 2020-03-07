@@ -131,6 +131,7 @@ public class PackageBuilder {
 
 	private boolean includeChangeData        = false;
 	private boolean includeNamespacedItems   = false;
+	private boolean includeManagedPackagesOnly   = false;
 	private boolean downloadData             = false;
 	private boolean gitCommit                = false;
 	private boolean simulateDataDownload     = false;
@@ -172,6 +173,7 @@ public class PackageBuilder {
 		this.unzipDownload = this.isParamTrue(PackageBuilderCommandLine.UNZIP_LONGNAME);
 		this.maxItemsInRegularPackage = Integer.valueOf(this.parameters.get(PackageBuilderCommandLine.MAXITEMS_LONGNAME));
 		this.includeNamespacedItems = this.isParamTrue(PackageBuilderCommandLine.INCLUDENAMESPACEDITEMS_LONGNAME);
+		this.includeManagedPackagesOnly = this.isParamTrue(PackageBuilderCommandLine.INCLUDEMANAGEDPACKAGES_LONGNAME);
 		
 		// initialize inventory - it will be used in both types of operations
 		// (connect to org or run local)
@@ -541,7 +543,7 @@ public class PackageBuilder {
 					// hack alert - currently (API 45) listMetadata returns nothing for StandardValueSet
 					if (!metadataType.equals("StandardValueSet")) {
 						for (final FileProperties n : srcMd) {
-							if ((includeNamespacedItems || n.getNamespacePrefix() == null) || n.getNamespacePrefix().equals("")) {
+							if ((includeNamespacedItems || n.getNamespacePrefix() == null) || n.getNamespacePrefix().equals("") || (metadataType.equals("InstalledPackage") && includeManagedPackagesOnly) ) {
 								// packageMap.add(n.getFullName());
 								InventoryItem i = new InventoryItem(n.getFullName(), n, this.describeMetadataObjectsMap.get(metadataType));
 								packageInventoryList.put(n.getFullName(), i);

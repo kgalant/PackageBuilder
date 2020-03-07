@@ -80,6 +80,8 @@ public class PackageBuilderCommandLine {
 	public static final String INCLUDEUSERNAME_LONGNAME = "includeusername";
 	public static final String INCLUDENAMESPACEDITEMS = "in";
 	public static final String INCLUDENAMESPACEDITEMS_LONGNAME = "includenamespaceditems";
+	public static final String INCLUDEMANAGEDPACKAGES = "imp";
+	public static final String INCLUDEMANAGEDPACKAGES_LONGNAME = "includemanagedpackages";
 	public static final String DESTINATION = "d";
 	public static final String DESTINATION_LONGNAME = "destination";
 	public static final String BASEDIRECTORY = "b";
@@ -358,8 +360,8 @@ public class PackageBuilderCommandLine {
 		setupParameter(BASEDIRECTORY_LONGNAME, 	BASEDIRECTORY,  BASEDIRECTORY_LONGNAME,	"base directory from which to generate package.xml", true);
 		setupParameter(STRIPUSERPERMISSIONS_LONGNAME,STRIPUSERPERMISSIONS,STRIPUSERPERMISSIONS_LONGNAME, "strip userPermissions tags from profile files (only applies if the -do switch is also used)", false);
 		setupParameter(RETAINTARGETDIR_LONGNAME,RETAINTARGETDIR,RETAINTARGETDIR_LONGNAME,"do not clear the metadatatargetdir provided when unzipping", false);
-		setupParameter(INCLUDENAMESPACEDITEMS_LONGNAME,INCLUDENAMESPACEDITEMS,INCLUDENAMESPACEDITEMS_LONGNAME,"include items from managed packages, including the managed packages themselves. If this flag is not set, anything from a managed package will be ignored.", false);
-
+		setupParameter(INCLUDENAMESPACEDITEMS_LONGNAME,INCLUDENAMESPACEDITEMS,INCLUDENAMESPACEDITEMS_LONGNAME,"include items from managed packages, including the managed packages themselves. If this flag is not set, anything from a managed package, including the package itself will be ignored - see also -imp option", false);
+		setupParameter(INCLUDEMANAGEDPACKAGES_LONGNAME,INCLUDEMANAGEDPACKAGES,INCLUDEMANAGEDPACKAGES_LONGNAME,"include managed packages only - so InstalledPackage::MyPackage is included, but CustomObject::MyPackage__MyCustomObject__c is not", false);
 	}
 
 	private void setupParameter(String propFileParamName, String shortParamName, String longParamName, String paramDescription,	boolean hasArgs) {
