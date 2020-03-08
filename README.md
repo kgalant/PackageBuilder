@@ -7,6 +7,8 @@ This is a tool for salesforce.com. It can do one of two things:
 
 Current downloads support API up to 48 (Spring 20)
 
+Please see http://bit.ly/PckBldDoc for full documentation.
+
 ### Usage:
 ``` 
 java -jar PackageBuilder.jar [-o <parameter file1>,<parameterfile2>,...] [-u <SF username>] [-p <SF password>] [-s <SF url>] [-a <apiversion>] [-mi <metadataType1>,<metadataType2>,...] [-sp <pattern1>,<pattern2>,...] [-d <destinationpath>] [-v]
