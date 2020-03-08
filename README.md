@@ -33,8 +33,8 @@ metadata items to fetch (commaseparated list of metadata types in package.xml na
 directory where the generated package.xml will be written
 * -b,--basedirectory `<arg>`    
 directory where the the code will look for a SFDC package structure (e.g. classes folder, objects folder, etc.)
-* -v,--verbose
-output verbose logging instead of just core output
+* -ll,--loglevel
+output log level (INFO, FINE, FINER make sense) - defaults to INFO if not provided
 * -c,--includechangedata
 include data on who last changed the item directly in the members tag of every item of the package.xml
 * -mx,--maxitems `<arg>`    
