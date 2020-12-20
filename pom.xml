@@ -149,4 +149,5 @@
 		</dependency>
 
 	</dependencies>
+	<url>https://github.com/kgalant/PackageBuilder</url>
 </project>
