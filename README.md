@@ -5,7 +5,7 @@ This is a tool for salesforce.com. It can do one of two things:
 * connect to an org and generate a package.xml that can subsequently be used with the Force.com Migration Tool to extract code and metadata from an org.
 * examine a directory containing an unzipped Force.com Migration Tool package and generate a package.xml 
 
-Current downloads support API up to 48 (Spring 20)
+Current downloads support API up to 51 (Spring 21)
 
 Please see http://bit.ly/PckBldDoc for full documentation.
 
