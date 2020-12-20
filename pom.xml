@@ -3,9 +3,9 @@
 	<modelVersion>4.0.0</modelVersion>
 	<groupId>com.kgal</groupId>
 	<artifactId>PackageBuilder</artifactId>
-	<version>2.3.4.1</version>
+	<version>2.3.4.1_51</version>
 	<name>Salesforce Package Builder</name>
-	<description>Generate package.xml files for Salesforce</description>
+	<description>Generate package.xml files for Salesforce - API 51 enabled</description>
 
 	<properties>
 		<!-- Software versions -->
